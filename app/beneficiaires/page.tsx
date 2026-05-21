@@ -2,8 +2,17 @@
 
 import { useState, useEffect } from "react"
 import { ateliers as ateliersMock } from "@/lib/mock-data"
+import {
+  THEMATIQUES,
+  emptyNotes,
+  isEmpty as notesIsEmpty,
+  moyenne as notesMoyenne,
+  migrate as migrateBenef,
+  type NotesPositionnement,
+  type Thematique,
+} from "@/lib/positionnement"
 import SlideOver, { Field, Input, Select, Textarea, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
-import { Plus, Pencil, Search, Phone, GraduationCap, Users, X } from "lucide-react"
+import { Plus, Pencil, Search, Phone, GraduationCap, Users, X, AlertTriangle } from "lucide-react"
 
 // ──────────────────────────────────────────────
 // Types
@@ -22,7 +31,8 @@ interface Beneficiaire {
   telephoneParent: string
   emailParent: string
   dateInscription: string
-  noteEvaluation: number | null
+  positionnementInitial: NotesPositionnement
+  positionnementFinal:   NotesPositionnement
   niveau: NiveauBenef
   notes: string
   statut: StatutBenef
@@ -57,10 +67,11 @@ function computeAge(dateNaissance: string): number | null {
   return new Date().getFullYear() - new Date(dateNaissance).getFullYear()
 }
 
-function deriveNiveau(note: number | null): NiveauBenef {
-  if (note === null) return "débutant"
-  if (note <= 10) return "débutant"
-  if (note <= 16) return "intermédiaire"
+function deriveNiveau(notes: NotesPositionnement): NiveauBenef {
+  const m = notesMoyenne(notes)
+  if (m === null) return "débutant"
+  if (m <= 10) return "débutant"
+  if (m <= 16) return "intermédiaire"
   return "avancé"
 }
 
@@ -69,6 +80,16 @@ function noteColor(note: number | null): string {
   if (note <= 7)  return "bg-red-100 text-red-700"
   if (note <= 13) return "bg-orange-100 text-orange-700"
   return "bg-green-100 text-green-700"
+}
+
+/** Helper local pour màj une note ciblée dans le formulaire. */
+function setNote(
+  notes: NotesPositionnement,
+  key: Thematique,
+  value: string,
+): NotesPositionnement {
+  const v = value === "" ? null : Math.max(0, Math.min(20, Number(value)))
+  return { ...notes, [key]: v }
 }
 
 function initials(prenom: string, nom: string): string {
@@ -91,7 +112,9 @@ const empty = (): Omit<Beneficiaire, "id"> => ({
   prenom: "", nom: "", dateNaissance: "", email: "", telephone: "",
   nomParent: "", telephoneParent: "", emailParent: "",
   dateInscription: new Date().toISOString().split("T")[0],
-  noteEvaluation: null, niveau: "débutant", notes: "", statut: "actif",
+  positionnementInitial: emptyNotes(),
+  positionnementFinal:   emptyNotes(),
+  niveau: "débutant", notes: "", statut: "actif",
 })
 
 // ──────────────────────────────────────────────
@@ -111,7 +134,9 @@ export default function BeneficiairesPage() {
   const [form, setForm]             = useState<Omit<Beneficiaire, "id">>(empty())
 
   useEffect(() => {
-    setBenef(load(S_BENEF, ateliersMock.beneficiaires as Beneficiaire[]))
+    // Migration auto si la donnée vient de l'ancien format (avant le Lot 1).
+    const raw = load<Beneficiaire[]>(S_BENEF, ateliersMock.beneficiaires as Beneficiaire[])
+    setBenef(raw.map(b => migrateBenef(b) as Beneficiaire))
     setGroupes(load(S_GROUPES, ateliersMock.groupes as Groupe[]))
     setSessions(load(S_SESSIONS, ateliersMock.sessions))
   }, [])
@@ -167,7 +192,9 @@ export default function BeneficiairesPage() {
     return matchSearch && matchStatut && matchNiveau
   })
 
-  const suggestedNiveau = deriveNiveau(form.noteEvaluation)
+  const suggestedNiveau = deriveNiveau(form.positionnementInitial)
+  const moyInitial      = notesMoyenne(form.positionnementInitial)
+  const aEvaluer        = notesIsEmpty(form.positionnementInitial)
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -274,10 +301,25 @@ export default function BeneficiairesPage() {
 
                     {/* Évaluation + niveau */}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      {b.noteEvaluation !== null && (
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${noteColor(b.noteEvaluation)}`}>
-                          {b.noteEvaluation}/20
+                      {notesIsEmpty(b.positionnementInitial) ? (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 flex items-center gap-1">
+                          <AlertTriangle size={10} /> À évaluer avant attribution
                         </span>
+                      ) : (
+                        <>
+                          {THEMATIQUES.map(t => {
+                            const n = b.positionnementInitial[t.key]
+                            return (
+                              <span
+                                key={t.key}
+                                title={t.label}
+                                className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${noteColor(n)}`}
+                              >
+                                {t.short.replace(/^[A-Z]\w+\. /, "")} {n ?? "—"}
+                              </span>
+                            )
+                          })}
+                        </>
                       )}
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${niveauStyle[b.niveau]}`}>
                         {b.niveau}
@@ -397,23 +439,6 @@ export default function BeneficiairesPage() {
               <Field label="Date d'inscription">
                 <Input type="date" value={form.dateInscription} onChange={e => setForm(f => ({ ...f, dateInscription: e.target.value }))} />
               </Field>
-              <Field label="Note d'évaluation (0–20)">
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="number" min={0} max={20} placeholder="—"
-                    value={form.noteEvaluation ?? ""}
-                    onChange={e => {
-                      const v = e.target.value === "" ? null : Number(e.target.value)
-                      setForm(f => ({ ...f, noteEvaluation: v, niveau: deriveNiveau(v) }))
-                    }}
-                  />
-                  {form.noteEvaluation !== null && (
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${noteColor(form.noteEvaluation)}`}>
-                      → {suggestedNiveau}
-                    </span>
-                  )}
-                </div>
-              </Field>
               <FormRow>
                 <Field label="Niveau">
                   <Select value={form.niveau} onChange={e => setForm(f => ({ ...f, niveau: e.target.value as NiveauBenef }))}>
@@ -430,6 +455,69 @@ export default function BeneficiairesPage() {
                   </Select>
                 </Field>
               </FormRow>
+            </div>
+          </div>
+
+          {/* Section Test de positionnement (initial + final) */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">
+                Test de positionnement
+              </p>
+              {aEvaluer && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 flex items-center gap-1">
+                  <AlertTriangle size={10} /> À évaluer avant attribution
+                </span>
+              )}
+            </div>
+
+            {/* Test initial — clé pour la composition des groupes */}
+            <div className="rounded-xl border border-border bg-surface/50 p-3 mb-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold text-foreground">
+                  Initial <span className="text-muted font-normal">— sert à composer les groupes</span>
+                </p>
+                {moyInitial !== null && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${noteColor(Math.round(moyInitial))}`}>
+                    moy {moyInitial.toFixed(1)} → {suggestedNiveau}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {THEMATIQUES.map(t => (
+                  <Field key={t.key} label={t.label}>
+                    <Input
+                      type="number" min={0} max={20} placeholder="—/20"
+                      value={form.positionnementInitial[t.key] ?? ""}
+                      onChange={e => {
+                        const next = setNote(form.positionnementInitial, t.key, e.target.value)
+                        setForm(f => ({ ...f, positionnementInitial: next, niveau: deriveNiveau(next) }))
+                      }}
+                    />
+                  </Field>
+                ))}
+              </div>
+            </div>
+
+            {/* Test final — mesure d'impact (optionnel) */}
+            <div className="rounded-xl border border-border bg-surface/50 p-3">
+              <p className="text-[11px] font-semibold text-foreground mb-2">
+                Final <span className="text-muted font-normal">— mesure d'impact (optionnel)</span>
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {THEMATIQUES.map(t => (
+                  <Field key={t.key} label={t.label}>
+                    <Input
+                      type="number" min={0} max={20} placeholder="—/20"
+                      value={form.positionnementFinal[t.key] ?? ""}
+                      onChange={e => {
+                        const next = setNote(form.positionnementFinal, t.key, e.target.value)
+                        setForm(f => ({ ...f, positionnementFinal: next }))
+                      }}
+                    />
+                  </Field>
+                ))}
+              </div>
             </div>
           </div>
 

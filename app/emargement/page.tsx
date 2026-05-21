@@ -18,7 +18,7 @@ interface Beneficiaire {
   id: number; prenom: string; nom: string
   telephone: string
   nomParent: string; telephoneParent: string
-  dateNaissance?: string; noteEvaluation?: number | null
+  dateNaissance?: string
   niveau: string; statut: string
 }
 

@@ -2,6 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { ateliers as ateliersMock, benevoles as benevolesMock } from "@/lib/mock-data"
+import {
+  moyenne as notesMoyenne,
+  migrate as migrateBenef,
+  type NotesPositionnement,
+} from "@/lib/positionnement"
 import Link from "next/link"
 import {
   Plus, Pencil, CalendarDays, Users, UserCheck, ClipboardCheck,
@@ -44,7 +49,8 @@ interface Beneficiaire {
   telephoneParent: string
   emailParent: string
   dateInscription: string
-  noteEvaluation: number | null
+  positionnementInitial: NotesPositionnement
+  positionnementFinal:   NotesPositionnement
   niveau: NiveauBenef
   notes: string
   statut: StatutBenef
@@ -253,11 +259,12 @@ function GroupesTab({
 
   function getScoreRange(g: Groupe): string | null {
     if (g.type !== "niveau") return null
+    // Moyenne du test initial pour chaque bénéficiaire — pas une note unique.
     const scores = getMembers(g)
-      .map(b => b.noteEvaluation)
+      .map(b => notesMoyenne(b.positionnementInitial))
       .filter((n): n is number => n !== null)
     if (scores.length === 0) return null
-    return `Note ${Math.min(...scores)}–${Math.max(...scores)}`
+    return `Moy. ${Math.min(...scores).toFixed(0)}–${Math.max(...scores).toFixed(0)}`
   }
 
   function getAgeRange(g: Groupe): string | null {
@@ -400,7 +407,9 @@ export default function AteliersPage() {
   // Hydration from localStorage
   useEffect(() => {
     setSessions(load(S_SESSIONS, ateliersMock.sessions as Session[]))
-    setBeneficiaires(load(S_BENEF, ateliersMock.beneficiaires as Beneficiaire[]))
+    // Migration auto si la donnée vient de l'ancien format (note unique).
+    const benefsRaw = load<Beneficiaire[]>(S_BENEF, ateliersMock.beneficiaires as Beneficiaire[])
+    setBeneficiaires(benefsRaw.map(b => migrateBenef(b) as Beneficiaire))
     setGroupes(load(S_GROUPES, ateliersMock.groupes as Groupe[]))
   }, [])
 
