@@ -26,6 +26,7 @@ interface Beneficiaire {
   niveau: NiveauBenef
   notes: string
   statut: StatutBenef
+  droitsImage?: boolean  // consentement photo/vidéo — utilisé par le module Communication
 }
 
 interface Groupe {

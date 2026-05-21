@@ -18,6 +18,7 @@ Persistance : `localStorage` (voir ADR 001). Données mockées dans `lib/`.
 | React | 19 | Server Components + `"use client"` explicite |
 | TypeScript | 5 | `strict: true` |
 | lucide-react | 1.16.0 | Certaines icônes n'existent pas — voir liste dans `AGENTS.md` |
+| @anthropic-ai/sdk | ^0.97.1 | Génération IA posts Communication — clé dans `.env.local` |
 
 ## Structure des modules
 
@@ -29,7 +30,7 @@ app/
 ├── absences/       Suivi absences du jour + historique
 ├── finances/       Demandes de financement + inscriptions
 ├── ateliers/       Planning + notes apprenantes + composition groupes
-├── communication/  Calendrier éditorial + kanban validation posts
+├── communication/  Calendrier éditorial + kanban validation posts (4.2)
 ├── benevoles/      Disponibilités bénévoles + gestion événements
 ├── membres/        Annuaire membres (rôles, statuts, CRUD)
 └── roadmap/        Matrice impact/facilité + suivi sous-actions
@@ -46,6 +47,10 @@ lib/
 ├── mock-data.ts    Données mockées (absences, finances, ateliers, com, bénévoles)
 ├── emargement-data.ts Séances + présences initiales
 └── roadmap-data.ts  6 thèmes, 16 use cases, 43 sous-actions
+
+app/api/
+└── generate-post/route.ts  POST — génère contenu + hashtags via Claude (Anthropic SDK)
+                             Requiert ANTHROPIC_API_KEY dans .env.local
 ```
 
 ## Conventions impératives
@@ -105,12 +110,63 @@ Toutes les pages sont `"use client"` (localStorage, état, hooks).
 Les composants partagés aussi (`Sidebar`, `SlideOver`, `AuthGate`).
 Pas de Server Actions, pas d'API routes dans ce projet (voir ADR 001).
 
+## Modèle Post (Communication)
+
+```typescript
+type ValidationStatus = "brouillon" | "en attente de validation" | "validé" | "publié"
+type CategoriePost = "atelier" | "autre"
+
+interface PlatformeContent { contenu?: string; tags?: string; lien?: string }
+interface MediaItem { nom: string; type: string; preview?: string }
+interface PostParticipant { id: number; prenom: string; nom: string }
+interface PostParticipants {
+  apprenantes: PostParticipant[]   // IDs → cross-ref avec asso-beneficiaires
+  benevoles: string[]              // noms (ref benevolesMock.liste)
+  formatrices: string[]            // noms libres
+}
+
+interface Post {
+  id: number
+  categorie: CategoriePost          // atelier | autre
+  date: string                       // date programmée ISO
+  titre: string
+  brief?: string                     // contexte court pour la génération IA (posts "autre")
+  contenu?: string                   // contenu principal
+  media?: MediaItem[]                // images (dataURL) ou vidéos (nom uniquement)
+  plateforme: Plateforme[]           // LinkedIn | Instagram | Facebook
+  plateformeContenu: Partial<Record<Plateforme, PlatformeContent>>  // surcharge par plateforme
+  statut: ValidationStatus
+  auteur: string
+  evenement?: string | null
+  sessionId?: number | null          // lien optionnel vers une Session du module Ateliers
+  participants?: PostParticipants    // uniquement pour categorie === "atelier"
+}
+```
+
+**Données cross-module (lecture seule depuis Communication) :**
+- `asso-ateliers-sessions` → sessions (pour auto-peupler les participants)
+- `asso-beneficiaires` → bénéficiaires (pour résoudre les noms et vérifier `droitsImage`)
+
+**Liste de floutage :** dérivée des apprenantes du post dont `beneficiaire.droitsImage !== true`.
+`droitsImage?: boolean` est défini dans l'interface `Beneficiaire` de `/app/beneficiaires/page.tsx` (champ optionnel, non encore affiché dans le formulaire).
+Tant qu'il n'est pas configuré, la liste de floutage affiche un message d'alerte et ne liste personne.
+
+**Kanban :** clic sur une carte ouvre directement l'édition (pas de panneau de lecture intermédiaire).
+
+Webhook Zapier : déclenché sur `"validé"` ou `"publié"` (plus `"approuvé"`).
+
+## Page de seed de test (à supprimer avant prod)
+
+`/app/dev/seed/page.tsx` — injecte des données fictives dans le localStorage pour tester
+la section participants et le floutage dans Communication.
+IDs réservés : 9001–9099. Supprimer ce fichier + le dossier `app/dev/` avant la mise en production.
+
 ## Ce qu'il ne faut PAS faire
 
 - ❌ Ne pas créer `tailwind.config.ts` — config dans `globals.css`
 - ❌ Ne pas importer `Linkedin`, `Instagram`, `Facebook`, `Kanban` de lucide-react (n'existent pas en v1.16.0)
 - ❌ Ne pas utiliser `bg-[var(--color-xxx)]` — utiliser `bg-xxx`
-- ❌ Ne pas créer de routes API (`app/api/`) sans décision d'équipe
+- ❌ Ne pas créer de routes API (`app/api/`) sans décision d'équipe — exception : `app/api/generate-post/route.ts` (génération IA, décidé en session)
 - ❌ Ne pas mettre de données dans l'URL (PII)
 - ❌ Ne pas casser le pattern SlideOver existant (cohérence UX)
 
