@@ -1,31 +1,49 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────
+   Charte graphique AREA Nantes
+   Extraite de areanantes.fr — mai 2026
+   ───────────────────────────────────────────── */
+
 :root {
-  --background: #f8fafc;
+  /* UI chrome */
+  --background: #f7f5f1;   /* crème très subtil, inspiré fond AREA */
   --foreground: #0f172a;
   --surface: #ffffff;
   --border: #e2e8f0;
   --muted: #64748b;
 
+  /* ── Couleur brand AREA — teal principal ── */
+  --color-brand: #2bbfbf;
+  --color-brand-light: #e3f7f7;
+  --color-brand-dark: #1a9494;
+
+  /* ── Modules — palette AREA ── */
+
+  /* Ateliers → teal AREA (couleur principale) */
+  --color-ateliers: #2bbfbf;
+  --color-ateliers-light: #e3f7f7;
+  --color-ateliers-dark: #1a9494;
+
+  /* Finances → vert forêt AREA */
+  --color-finances: #1b6840;
+  --color-finances-light: #d8efe2;
+  --color-finances-dark: #145030;
+
+  /* Communication → jaune doré AREA */
+  --color-communication: #c49b1a;
+  --color-communication-light: #fef5d3;
+  --color-communication-dark: #9a7810;
+
+  /* Absences → orange alerte (inchangé — couleur d'alerte universelle) */
   --color-absences: #f59e0b;
   --color-absences-light: #fef3c7;
   --color-absences-dark: #d97706;
 
-  --color-finances: #10b981;
-  --color-finances-light: #d1fae5;
-  --color-finances-dark: #059669;
-
-  --color-ateliers: #3b82f6;
-  --color-ateliers-light: #dbeafe;
-  --color-ateliers-dark: #2563eb;
-
-  --color-communication: #8b5cf6;
-  --color-communication-light: #ede9fe;
-  --color-communication-dark: #7c3aed;
-
-  --color-benevoles: #14b8a6;
-  --color-benevoles-light: #ccfbf1;
-  --color-benevoles-dark: #0d9488;
+  /* Bénévoles → teal secondaire (conservé) */
+  --color-benevoles: #2bbfbf;
+  --color-benevoles-light: #e3f7f7;
+  --color-benevoles-dark: #1a9494;
 
   --color-alert: #ef4444;
 }
@@ -37,6 +55,12 @@
   --color-border: var(--border);
   --color-muted: var(--muted);
 
+  /* Brand AREA */
+  --color-brand: var(--color-brand);
+  --color-brand-light: var(--color-brand-light);
+  --color-brand-dark: var(--color-brand-dark);
+
+  /* Modules */
   --color-absences: var(--color-absences);
   --color-absences-light: var(--color-absences-light);
   --color-absences-dark: var(--color-absences-dark);

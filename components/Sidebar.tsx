@@ -46,10 +46,10 @@ export default function Sidebar() {
   return (
     <aside className="w-60 min-h-screen bg-surface border-r border-border flex flex-col shrink-0">
       <div className="p-5 border-b border-border flex items-center gap-2.5">
-        <span className="bg-slate-900 text-white rounded-lg p-1.5">
+        <span className="bg-brand text-white rounded-lg p-1.5">
           <Heart size={16} />
         </span>
-        <span className="font-semibold text-foreground text-sm tracking-wide">Asso</span>
+        <span className="font-semibold text-foreground text-sm tracking-wide">AREA Nantes</span>
       </div>
 
       <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
