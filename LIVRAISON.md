@@ -88,10 +88,14 @@ Il centralise :
 
 ### Communication (`/communication`)
 - **Calendrier éditorial** : vue mensuelle des posts planifiés avec leurs statuts
-- **Kanban de validation** : circuit Brouillon → Soumis → Approuvé → Publié
+- **Kanban de validation** : circuit Brouillon → En attente de validation → Validé → Publié
 - **Événements** : création et gestion des événements de l'association, liables aux posts
 - **Intégrations réseaux sociaux** : connexion Zapier / Make via webhook (voir section 6)
 - CRUD posts et événements
+- Chaque post contient : catégorie (atelier / autre), titre, brief (contexte IA), contenu principal, médias (images/vidéos), plateformes cibles avec personnalisation par plateforme (contenu spécifique, tags, lien), date programmée, état, auteur, événement lié
+- Posts **atelier** : liste de participants structurée (apprenantes, bénévoles, enseignant·es), importable depuis une session du module Ateliers, + liste automatique des personnes à flouter (basée sur le droit à l'image — champ `droitsImage` à configurer dans les fiches bénéficiaires)
+- Clic sur une carte Kanban → édition directe (sans étape intermédiaire)
+- **Génération IA** : bouton ✨ "Générer avec l'IA" dans le formulaire — génère le contenu principal + une variante par plateforme + des hashtags via Claude (Anthropic). Pour les posts "atelier" : contexte automatique depuis la session. Pour les posts "autre" : basé sur un brief libre saisi par l'utilisateur.
 
 ### Membres (`/membres`)
 - Annuaire de l'équipe (salariées, bénévoles, coordinatrices)
@@ -159,7 +163,13 @@ Aller dans **Vercel → Project Settings → Environment Variables** :
 
 | Variable | Obligatoire | Description |
 |---|---|---|
-| _(aucune pour l'instant)_ | — | L'app fonctionne sans variable d'env en phase 1 |
+| `ANTHROPIC_API_KEY` | Oui (pour la génération IA) | Clé API Anthropic — obtenir sur [console.anthropic.com](https://console.anthropic.com/) |
+
+> **En local** : créer un fichier `.env.local` à la racine du projet :
+> ```
+> ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxx
+> ```
+> Ce fichier est ignoré par git (`.env*` dans `.gitignore`).
 
 > **Phase 2** : quand l'intégration Google Apps Script sera activée, ajouter :
 > ```
