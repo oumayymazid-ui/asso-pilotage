@@ -111,8 +111,8 @@ const postsInitiaux: Post[] = [
 
 const KANBAN_COLS: { id: ValidationStatus; label: string; color: string }[] = [
   { id: "brouillon",                label: "Brouillon",  color: "bg-slate-100 border-slate-200" },
-  { id: "en attente de validation", label: "En attente", color: "bg-ateliers-light border-ateliers/30" },
-  { id: "validé",                   label: "Validé",     color: "bg-finances-light border-finances/30" },
+  { id: "en attente de validation", label: "En attente", color: "bg-absences-light border-absences/30" },
+  { id: "validé",                   label: "Validé",     color: "bg-indigo-50 border-indigo-200" },
   { id: "publié",                   label: "Publié",     color: "bg-emerald-50 border-emerald-200" },
 ]
 
@@ -176,15 +176,15 @@ function CalendrierTab({ posts, events, onNewPost }: { posts: Post[]; events: Ev
 
   const statutDot: Record<ValidationStatus, string> = {
     brouillon:                  "bg-slate-300",
-    "en attente de validation": "bg-ateliers",
-    validé:                     "bg-finances",
+    "en attente de validation": "bg-absences",
+    validé:                     "bg-indigo-600",
     publié:                     "bg-emerald-500",
   }
 
   const statutBg: Record<ValidationStatus, string> = {
     brouillon:                  "bg-slate-100 text-slate-600",
-    "en attente de validation": "bg-ateliers-light text-ateliers-dark",
-    validé:                     "bg-finances-light text-finances-dark",
+    "en attente de validation": "bg-absences-light text-absences-dark",
+    validé:                     "bg-indigo-100 text-indigo-700",
     publié:                     "bg-emerald-50 text-emerald-700",
   }
 
