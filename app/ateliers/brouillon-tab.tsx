@@ -96,9 +96,11 @@ function computeAge(dn: string): number | null {
 export default function BrouillonGroupesTab(props: {
   sessions: Session[]
   beneficiaires: Beneficiaire[]
-  /** Appelé quand la collaboratrice valide un brouillon : le parent ajoute les
-   *  nouveaux groupes à son state, ce qui les rend visibles dans l'onglet Groupes. */
-  onGroupesValides: (newGroupes: Groupe[]) => void
+  /** Appelé quand la collaboratrice valide un brouillon. Le parent doit
+   *  remplacer les groupes deja rattachés à cet atelier (et non simplement
+   *  ajouter) — sinon, une nouvelle validation crée un doublon de groupes
+   *  pour la même fiche atelier. */
+  onGroupesValides: (newGroupes: Groupe[], atelierId: number) => void
   /** Met à jour la session source pour que l'onglet Ateliers reflète la
    *  composition validée (beneficiaireIds = union des groupes du brouillon). */
   onAtelierBenefsUpdated: (atelierId: number, beneficiaireIds: number[]) => void
@@ -255,7 +257,7 @@ export default function BrouillonGroupesTab(props: {
       beneficiaireIds: [...g.beneficiaireIds],
       atelierId: atelier.id,
     }))
-    onGroupesValides(nouveaux)
+    onGroupesValides(nouveaux, atelier.id)
 
     // Synchronise la session source : ses beneficiaireIds deviennent
     // l'union de tous les bénéficiaires placés dans les groupes validés.

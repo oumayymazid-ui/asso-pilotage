@@ -791,7 +791,14 @@ export default function AteliersPage() {
         <BrouillonGroupesTab
           sessions={sessions}
           beneficiaires={beneficiaires}
-          onGroupesValides={(nouveaux) => persistGroupes([...groupes, ...nouveaux])}
+          onGroupesValides={(nouveaux, atelierId) => {
+            // Remplace les groupes deja rattaches a cet atelier (atelierId
+            // identique) — sinon, revalider un brouillon dupliquerait les
+            // groupes. Garde tous les autres groupes (autres ateliers + ceux
+            // crees a la main avec atelierId null).
+            const sansAnciens = groupes.filter(g => g.atelierId !== atelierId)
+            persistGroupes([...sansAnciens, ...nouveaux])
+          }}
           onAtelierBenefsUpdated={(atelierId, benefIds) => {
             // Met à jour la session source : sa liste de bénéficiaires reflète
             // désormais la composition validée. Affiché dans le sous-onglet Ateliers.
