@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from "react"
-import { communication, benevoles as benevolesMock } from "@/lib/mock-data"
-import { Calendar, Columns3, Check, X, RotateCcw, Plus, Pencil, CalendarDays, Shuffle, CheckCircle2, XCircle, Users, ChevronRight } from "lucide-react"
+import Link from "next/link"
+import { benevoles as benevolesMock } from "@/lib/mock-data"
+import { Calendar, Columns3, Check, X, RotateCcw, Plus, Shuffle, CheckCircle2, XCircle, Users, ChevronRight } from "lucide-react"
 import SlideOver, { Field, Input, Textarea, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 
 const STORAGE_POSTS        = "asso-communication-posts"
-const STORAGE_EVENTS       = "asso-communication-events"
+const STORAGE_REJECTED     = "asso-communication-rejected"
 const STORAGE_INTEGRATIONS = "asso-communication-integrations"
 const S_SESSIONS           = "asso-ateliers-sessions"
 const S_BENEFICIAIRES      = "asso-beneficiaires"
@@ -19,9 +20,8 @@ function load<T>(key: string, fallback: T): T {
 // ──────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────
-type ValidationStatus = "brouillon" | "en attente de validation" | "validé" | "publié"
+type ValidationStatus = "brouillon" | "à valider" | "validé" | "publié"
 type Plateforme       = "LinkedIn" | "Instagram" | "Facebook"
-type TypeEvenement    = "atelier" | "événement" | "cérémonie"
 type CategoriePost    = "atelier" | "autre"
 
 interface PlatformeContent {
@@ -41,13 +41,6 @@ interface PostParticipants {
   apprenantes: PostParticipant[]
   benevoles: string[]
   formatrices: string[]
-}
-
-interface Evenement {
-  id: number
-  nom: string
-  date: string
-  type: TypeEvenement
 }
 
 interface IntegrationsConfig {
@@ -101,7 +94,7 @@ interface BenefSlim {
 // Données initiales
 // ──────────────────────────────────────────────
 const postsInitiaux: Post[] = [
-  { id: 1, categorie: "atelier", date: "2026-05-21", titre: "Recap atelier HTML/CSS",       contenu: "Super séance aujourd'hui avec nos débutantes ! 💻 Elles ont créé leur première page web from scratch…",         plateforme: ["LinkedIn", "Instagram"], plateformeContenu: {}, statut: "en attente de validation", auteur: "Nadjat",  evenement: "Atelier 21 mai",          sessionId: null, participants: { apprenantes: [], benevoles: [], formatrices: [] } },
+  { id: 1, categorie: "atelier", date: "2026-05-21", titre: "Recap atelier HTML/CSS",       contenu: "Super séance aujourd'hui avec nos débutantes ! 💻 Elles ont créé leur première page web from scratch…",         plateforme: ["LinkedIn", "Instagram"], plateformeContenu: {}, statut: "à valider",                auteur: "Nadjat",  evenement: "Atelier 21 mai",          sessionId: null, participants: { apprenantes: [], benevoles: [], formatrices: [] } },
   { id: 2, categorie: "autre",   date: "2026-05-23", titre: "Portrait bénévole – Amira",    contenu: "Rencontre avec Amira, bénévole depuis 2 ans. Elle nous parle de ce qui l'a amenée à rejoindre l'association…",    plateforme: ["Instagram"],             plateformeContenu: {}, statut: "brouillon",                  auteur: "Nadjat",  evenement: null,                      sessionId: null },
   { id: 3, categorie: "autre",   date: "2026-05-27", titre: "Annonce portes ouvertes",       contenu: "📣 Portes ouvertes le 7 juin ! Venez découvrir nos ateliers, rencontrer l'équipe et vous inscrire pour la rentrée.", plateforme: ["LinkedIn", "Instagram", "Facebook"], plateformeContenu: {}, statut: "brouillon", auteur: "Nadjat", evenement: "Portes ouvertes 7 juin", sessionId: null },
   { id: 4, categorie: "autre",   date: "2026-06-07", titre: "Live portes ouvertes",          contenu: "🔴 On est EN DIRECT depuis nos portes ouvertes ! Rejoignez-nous pour voir ce qui se passe…",                      plateforme: ["Instagram"],             plateformeContenu: {}, statut: "validé",                     auteur: "Nadjat",  evenement: "Portes ouvertes 7 juin", sessionId: null },
@@ -111,7 +104,7 @@ const postsInitiaux: Post[] = [
 
 const KANBAN_COLS: { id: ValidationStatus; label: string; color: string }[] = [
   { id: "brouillon",                label: "Brouillon",  color: "bg-slate-100 border-slate-200" },
-  { id: "en attente de validation", label: "En attente", color: "bg-absences-light border-absences/30" },
+  { id: "à valider",                label: "À valider",  color: "bg-absences-light border-absences/30" },
   { id: "validé",                   label: "Validé",     color: "bg-indigo-50 border-indigo-200" },
   { id: "publié",                   label: "Publié",     color: "bg-emerald-50 border-emerald-200" },
 ]
@@ -131,7 +124,7 @@ const plateformeStyle: Record<Plateforme, string> = {
 // ──────────────────────────────────────────────
 // Calendrier éditorial
 // ──────────────────────────────────────────────
-function CalendrierTab({ posts, events, onNewPost }: { posts: Post[]; events: Evenement[]; onNewPost: (date: string) => void }) {
+function CalendrierTab({ posts, onNewPost }: { posts: Post[]; onNewPost: (date: string) => void }) {
   const today = new Date("2026-05-20")
   const [displayYear, setDisplayYear] = useState(today.getFullYear())
   const [displayMonth, setDisplayMonth] = useState(today.getMonth())
@@ -175,17 +168,17 @@ function CalendrierTab({ posts, events, onNewPost }: { posts: Post[]; events: Ev
   }, [posts, year, month])
 
   const statutDot: Record<ValidationStatus, string> = {
-    brouillon:                  "bg-slate-300",
-    "en attente de validation": "bg-absences",
-    validé:                     "bg-indigo-600",
-    publié:                     "bg-emerald-500",
+    brouillon:     "bg-slate-300",
+    "à valider":   "bg-absences",
+    validé:        "bg-indigo-600",
+    publié:        "bg-emerald-500",
   }
 
   const statutBg: Record<ValidationStatus, string> = {
-    brouillon:                  "bg-slate-100 text-slate-600",
-    "en attente de validation": "bg-absences-light text-absences-dark",
-    validé:                     "bg-indigo-100 text-indigo-700",
-    publié:                     "bg-emerald-50 text-emerald-700",
+    brouillon:   "bg-slate-100 text-slate-600",
+    "à valider": "bg-absences-light text-absences-dark",
+    validé:      "bg-indigo-100 text-indigo-700",
+    publié:      "bg-emerald-50 text-emerald-700",
   }
 
   const cells: (number | null)[] = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
@@ -226,10 +219,6 @@ function CalendrierTab({ posts, events, onNewPost }: { posts: Post[]; events: Ev
           const isToday = day === today.getDate() && year === today.getFullYear() && month === today.getMonth()
           const dayPosts = postsByDay[day] ?? []
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-          const dayEvents = events.filter((e) => {
-            const d = new Date(e.date)
-            return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day
-          })
           return (
             <div
               key={i}
@@ -247,70 +236,10 @@ function CalendrierTab({ posts, events, onNewPost }: { posts: Post[]; events: Ev
                   <span className="truncate text-[10px] font-medium">{p.titre}</span>
                 </div>
               ))}
-              {dayEvents.map((e) => (
-                <div key={e.id} className="text-[10px] text-absences-dark bg-absences-light px-1 py-0.5 rounded truncate mt-0.5">
-                  📅 {e.nom}
-                </div>
-              ))}
             </div>
           )
         })}
       </div>
-      {events.length > 0 && (
-        <div className="flex gap-3 flex-wrap text-xs text-muted pt-2">
-          {events.map((e) => (
-            <span key={e.id} className="flex items-center gap-1.5 bg-absences-light text-absences-dark px-2 py-1 rounded-full">
-              📅 {e.nom} · {new Date(e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ──────────────────────────────────────────────
-// Onglet Événements
-// ──────────────────────────────────────────────
-const TYPE_OPTIONS: { value: TypeEvenement; label: string; cls: string }[] = [
-  { value: "atelier",   label: "Atelier",   cls: "bg-ateliers-light text-ateliers-dark" },
-  { value: "événement", label: "Événement", cls: "bg-communication-light text-communication-dark" },
-  { value: "cérémonie", label: "Cérémonie", cls: "bg-finances-light text-finances-dark" },
-]
-
-function EventsTab({ events, onEdit, onNew }: { events: Evenement[]; onEdit: (e: Evenement) => void; onNew: () => void }) {
-  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date))
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">Ces événements apparaissent dans le calendrier éditorial et peuvent être liés aux posts.</p>
-        <button onClick={onNew} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors">
-          <Plus size={14} /> Nouvel événement
-        </button>
-      </div>
-      {sorted.length === 0 ? (
-        <div className="text-center py-16 text-muted text-sm">
-          <CalendarDays size={32} className="mx-auto mb-3 opacity-30" />
-          Aucun événement. Commencez par en créer un.
-        </div>
-      ) : (
-        <div className="bg-surface border border-border rounded-2xl overflow-hidden">
-          {sorted.map((e, i) => {
-            const typeOpt = TYPE_OPTIONS.find((t) => t.value === e.type) ?? TYPE_OPTIONS[1]
-            return (
-              <div key={e.id} className={`flex items-center gap-4 px-5 py-4 group hover:bg-slate-50 transition-colors ${i > 0 ? "border-t border-border" : ""}`}>
-                <div className="text-center min-w-12 shrink-0">
-                  <p className="text-lg font-bold text-foreground leading-none">{new Date(e.date).toLocaleDateString("fr-FR", { day: "numeric" })}</p>
-                  <p className="text-[10px] text-muted uppercase tracking-wide">{new Date(e.date).toLocaleDateString("fr-FR", { month: "short" })}</p>
-                </div>
-                <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-foreground">{e.nom}</p></div>
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${typeOpt.cls}`}>{typeOpt.label}</span>
-                <button onClick={() => onEdit(e)} className="p-1.5 rounded-lg hover:bg-slate-200 text-muted opacity-0 group-hover:opacity-100 transition-all"><Pencil size={13} /></button>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
@@ -318,39 +247,45 @@ function EventsTab({ events, onEdit, onNew }: { events: Evenement[]; onEdit: (e:
 // ──────────────────────────────────────────────
 // Kanban de validation
 // ──────────────────────────────────────────────
-function KanbanTab({ posts, onChangeStatus, onEdit }: {
+function KanbanTab({ posts, rejectedIds = [], onChangeStatus, onEdit }: {
   posts: Post[]
+  rejectedIds?: number[]
   onChangeStatus: (id: number, status: ValidationStatus) => void
   onEdit: (p: Post) => void
 }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        Circuit de validation : <span className="font-medium text-foreground">Brouillon → En attente de validation → Validé → Publié</span>.
+        Circuit de validation : <span className="font-medium text-foreground">Brouillon → À valider → Validé → Publié</span>.
         Cliquez sur une carte pour l'éditer.
       </p>
       <div className="grid grid-cols-4 gap-4">
         {KANBAN_COLS.map((col) => {
-          const colPosts = posts.filter((p) => p.statut === col.id)
+          const allColPosts = posts.filter((p) => p.statut === col.id)
+          const colPosts = col.id === "publié"
+            ? [...allColPosts].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3)
+            : allColPosts
           return (
             <div key={col.id} className={`rounded-xl border-2 p-3 flex flex-col gap-3 min-h-48 ${col.color}`}>
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold text-foreground leading-tight">{col.label}</h3>
-                <span className="text-xs bg-white/70 rounded-full px-2 py-0.5 font-medium text-muted">{colPosts.length}</span>
+                <span className="text-xs bg-white/70 rounded-full px-2 py-0.5 font-medium text-muted">{allColPosts.length}</span>
               </div>
               {colPosts.map((p) => (
                 <div
                   key={p.id}
                   onClick={() => onEdit(p)}
-                  className="bg-white rounded-xl p-3 shadow-sm border border-white flex flex-col gap-2 cursor-pointer hover:shadow-md hover:border-slate-200 transition-all group"
+                  className="relative bg-white rounded-xl p-3 shadow-sm border border-white flex flex-col gap-2 cursor-pointer hover:shadow-md hover:border-slate-200 transition-all group"
                 >
-                  <p className="text-xs font-semibold text-foreground leading-snug group-hover:text-ateliers-dark transition-colors">{p.titre}</p>
-                  {p.contenu && <p className="text-[11px] text-muted leading-relaxed line-clamp-2">{p.contenu}</p>}
-                  {p.categorie === "atelier" && p.participants && p.participants.apprenantes.length > 0 && (
-                    <p className="text-[10px] text-ateliers-dark flex items-center gap-1">
-                      <Users size={9} /> {p.participants.apprenantes.length} apprenante{p.participants.apprenantes.length > 1 ? "s" : ""}
-                    </p>
+                  {rejectedIds.includes(p.id) && (
+                    <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 ring-2 ring-white shadow-sm" />
                   )}
+                  <div className="flex items-start justify-between gap-1">
+                    <p className="text-xs font-semibold text-foreground leading-snug group-hover:text-ateliers-dark transition-colors">{p.titre}</p>
+                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${p.categorie === "atelier" ? "bg-ateliers-light text-ateliers-dark" : "bg-slate-100 text-slate-600"}`}>
+                      {p.categorie === "atelier" ? "Atelier" : "Autre"}
+                    </span>
+                  </div>
                   <div className="flex flex-wrap gap-1">
                     {p.plateforme.map((pl) => (
                       <span key={pl} className={`flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${plateformeStyle[pl]}`}>
@@ -363,15 +298,15 @@ function KanbanTab({ posts, onChangeStatus, onEdit }: {
                   </div>
                   <div className="flex gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
                     {p.statut === "brouillon" && (
-                      <button onClick={() => onChangeStatus(p.id, "en attente de validation")} className="flex-1 text-[10px] bg-ateliers-light text-ateliers-dark rounded-lg py-1 font-medium hover:opacity-80">Soumettre</button>
+                      <button onClick={() => onChangeStatus(p.id, "à valider")} className="flex-1 text-[10px] bg-ateliers-light text-ateliers-dark rounded-lg py-1 font-medium hover:opacity-80">Soumettre</button>
                     )}
-                    {p.statut === "en attente de validation" && <>
+                    {p.statut === "à valider" && <>
                       <button onClick={() => onChangeStatus(p.id, "validé")} className="flex-1 text-[10px] bg-finances-light text-finances-dark rounded-lg py-1 font-medium hover:opacity-80 flex items-center justify-center gap-1"><Check size={10} /> Valider</button>
                       <button onClick={() => onChangeStatus(p.id, "brouillon")} className="text-[10px] bg-red-50 text-alert rounded-lg px-2 py-1 font-medium hover:opacity-80"><X size={10} /></button>
                     </>}
                     {p.statut === "validé" && <>
                       <button onClick={() => onChangeStatus(p.id, "publié")} className="flex-1 text-[10px] bg-emerald-100 text-emerald-700 rounded-lg py-1 font-medium hover:opacity-80">Marquer publié</button>
-                      <button onClick={() => onChangeStatus(p.id, "en attente de validation")} className="text-[10px] bg-slate-100 text-muted rounded-lg px-2 py-1 hover:opacity-80"><RotateCcw size={10} /></button>
+                      <button onClick={() => onChangeStatus(p.id, "à valider")} className="text-[10px] bg-slate-100 text-muted rounded-lg px-2 py-1 hover:opacity-80"><RotateCcw size={10} /></button>
                     </>}
                     {p.statut === "publié" && (
                       <span className="flex-1 text-[10px] text-center text-emerald-600 font-medium py-1">✓ Publié</span>
@@ -381,6 +316,15 @@ function KanbanTab({ posts, onChangeStatus, onEdit }: {
               ))}
               {colPosts.length === 0 && (
                 <div className="flex-1 flex items-center justify-center text-xs text-muted/50 italic">Vide</div>
+              )}
+              {col.id === "publié" && (
+                <Link
+                  href="/communication/publies"
+                  onClick={e => e.stopPropagation()}
+                  className="flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-700 hover:text-emerald-800 bg-white/70 hover:bg-white rounded-lg py-2 transition-colors border border-emerald-200/60"
+                >
+                  Voir tous les posts publiés <ChevronRight size={10} />
+                </Link>
               )}
             </div>
           )
@@ -490,8 +434,6 @@ function IntegrationsTab({ config, onChange, onTest, testStatus }: {
 // ──────────────────────────────────────────────
 // Page principale
 // ──────────────────────────────────────────────
-const eventsInitiaux: Evenement[] = communication.evenements as Evenement[]
-
 const emptyParticipants = (): PostParticipants => ({ apprenantes: [], benevoles: [], formatrices: [] })
 
 const emptyPost = (): Omit<Post, "id"> => ({
@@ -501,19 +443,15 @@ const emptyPost = (): Omit<Post, "id"> => ({
   media: [],
   plateforme: ["Instagram"],
   plateformeContenu: {},
-  statut: "brouillon", auteur: "", evenement: null,
+  statut: "brouillon", auteur: "",
   sessionId: null,
   participants: emptyParticipants(),
-})
-
-const emptyEvent = (): Omit<Evenement, "id"> => ({
-  nom: "", date: new Date().toISOString().split("T")[0], type: "événement",
 })
 
 const ALL_PLATEFORMES: Plateforme[] = ["LinkedIn", "Instagram", "Facebook"]
 
 export default function CommunicationPage() {
-  const [tab, setTab] = useState<"calendrier" | "kanban" | "evenements" | "integrations">("calendrier")
+  const [tab, setTab] = useState<"calendrier" | "kanban" | "integrations">("calendrier")
 
   const [posts, setPosts] = useState<Post[]>(postsInitiaux)
   const [slideOpen, setSlideOpen] = useState(false)
@@ -523,10 +461,7 @@ export default function CommunicationPage() {
   const [newFormatrice, setNewFormatrice] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [events, setEvents] = useState<Evenement[]>(eventsInitiaux)
-  const [eventSlideOpen, setEventSlideOpen] = useState(false)
-  const [editingEvent, setEditingEvent] = useState<Evenement | null>(null)
-  const [eventForm, setEventForm] = useState<Omit<Evenement, "id">>(emptyEvent())
+  const [rejectedIds, setRejectedIds] = useState<number[]>([])
 
   const [integrations, setIntegrations] = useState<IntegrationsConfig>(integrationsInitial)
   const [webhookTestStatus, setWebhookTestStatus] = useState<"idle" | "sending" | "ok" | "error">("idle")
@@ -537,15 +472,23 @@ export default function CommunicationPage() {
   const [generateError, setGenerateError] = useState<string | null>(null)
 
   useEffect(() => {
-    setPosts(load(STORAGE_POSTS, postsInitiaux))
-    setEvents(load(STORAGE_EVENTS, eventsInitiaux))
+    const raw = load<Post[]>(STORAGE_POSTS, postsInitiaux)
+    // Migration : "en attente de validation" → "à valider"
+    const migrated = raw.map(p =>
+      (p.statut as string) === "en attente de validation" ? { ...p, statut: "à valider" as ValidationStatus } : p
+    )
+    if (migrated.some((p, i) => p !== raw[i])) {
+      localStorage.setItem(STORAGE_POSTS, JSON.stringify(migrated))
+    }
+    setPosts(migrated)
+    setRejectedIds(load<number[]>(STORAGE_REJECTED, []))
     setIntegrations(load(STORAGE_INTEGRATIONS, integrationsInitial))
     setSessions(load(S_SESSIONS, []))
     setBeneficiaires(load(S_BENEFICIAIRES, []))
   }, [])
 
   function persistPosts(data: Post[]) { setPosts(data); localStorage.setItem(STORAGE_POSTS, JSON.stringify(data)) }
-  function persistEvents(data: Evenement[]) { setEvents(data); localStorage.setItem(STORAGE_EVENTS, JSON.stringify(data)) }
+  function persistRejected(ids: number[]) { setRejectedIds(ids); localStorage.setItem(STORAGE_REJECTED, JSON.stringify(ids)) }
   function persistIntegrations(data: IntegrationsConfig) { setIntegrations(data); localStorage.setItem(STORAGE_INTEGRATIONS, JSON.stringify(data)) }
 
   async function triggerWebhook(post: Post) {
@@ -555,7 +498,7 @@ export default function CommunicationPage() {
       await fetch(integrations.zapierWebhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titre: post.titre, contenu: post.contenu ?? "", plateformes: post.plateforme, auteur: post.auteur, date: post.date, evenement: post.evenement ?? null }),
+        body: JSON.stringify({ titre: post.titre, contenu: post.contenu ?? "", plateformes: post.plateforme, auteur: post.auteur, date: post.date }),
       })
     } catch { /* silently ignore */ }
   }
@@ -571,6 +514,13 @@ export default function CommunicationPage() {
   }
 
   function changeStatus(id: number, status: ValidationStatus) {
+    const prev = posts.find(p => p.id === id)
+    // Dot rouge : allumé quand "à valider" → "brouillon", éteint dès que le post quitte brouillon
+    if (status === "brouillon" && prev?.statut === "à valider") {
+      persistRejected([...rejectedIds, id])
+    } else if (status !== "brouillon" && rejectedIds.includes(id)) {
+      persistRejected(rejectedIds.filter(rid => rid !== id))
+    }
     const updated = posts.map((p) => p.id === id ? { ...p, statut: status } : p)
     persistPosts(updated)
     const post = updated.find((p) => p.id === id)
@@ -770,27 +720,10 @@ export default function CommunicationPage() {
     [form.participants?.apprenantes, beneficiaires]
   )
 
-  function openNewEvent() { setEditingEvent(null); setEventForm(emptyEvent()); setEventSlideOpen(true) }
-  function openEditEvent(e: Evenement) { setEditingEvent(e); setEventForm({ nom: e.nom, date: e.date, type: e.type }); setEventSlideOpen(true) }
-
-  function handleSaveEvent() {
-    if (!eventForm.nom.trim()) return
-    const updated = editingEvent
-      ? events.map((e) => e.id === editingEvent.id ? { ...eventForm, id: editingEvent.id } : e)
-      : [...events, { ...eventForm, id: Date.now() }]
-    persistEvents(updated); setEventSlideOpen(false)
-  }
-
-  function handleDeleteEvent() {
-    if (!editingEvent) return
-    persistEvents(events.filter((e) => e.id !== editingEvent.id))
-    setEventSlideOpen(false)
-  }
-
   const currentYear    = new Date().getFullYear()
   const debutAnnee     = new Date(currentYear, 0, 1)
   const nbBrouillons   = posts.filter((p) => p.statut === "brouillon").length
-  const valides        = posts.filter((p) => p.statut === "validé").length
+  const aValider       = posts.filter((p) => p.statut === "à valider").length
   const nbPubliesAnnee = posts.filter((p) => p.statut === "publié" && new Date(p.date) >= debutAnnee).length
 
   const availableBeneficiaires = beneficiaires.filter(b => !form.participants?.apprenantes.some(a => a.id === b.id))
@@ -803,11 +736,9 @@ export default function CommunicationPage() {
           <h1 className="text-2xl font-bold text-foreground">Communication</h1>
           <p className="text-sm text-muted mt-1">Calendrier éditorial & circuit de validation des posts</p>
         </div>
-        {tab !== "evenements" && (
-          <button onClick={openNew} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors">
-            <Plus size={14} /> Nouveau post
-          </button>
-        )}
+        <button onClick={openNew} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors">
+          <Plus size={14} /> Nouveau post
+        </button>
       </header>
 
       <SlideOver open={slideOpen} onClose={() => setSlideOpen(false)} title={editing ? "Modifier le post" : "Nouveau post"} width="lg">
@@ -822,7 +753,7 @@ export default function CommunicationPage() {
             <Field label="État">
               <Select value={form.statut} onChange={e => setForm(f => ({ ...f, statut: e.target.value as ValidationStatus }))}>
                 <option value="brouillon">Brouillon</option>
-                <option value="en attente de validation">En attente de validation</option>
+                <option value="à valider">À valider</option>
                 <option value="validé">Validé</option>
                 <option value="publié">Publié</option>
               </Select>
@@ -1043,17 +974,9 @@ export default function CommunicationPage() {
             </div>
           )}
 
-          <FormRow>
-            <Field label="Date programmée">
-              <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-            </Field>
-            <Field label="Événement lié">
-              <Select value={form.evenement ?? ""} onChange={e => setForm(f => ({ ...f, evenement: e.target.value || null }))}>
-                <option value="">— Aucun —</option>
-                {events.map((e) => <option key={e.id} value={e.nom}>{e.nom}</option>)}
-              </Select>
-            </Field>
-          </FormRow>
+          <Field label="Date programmée">
+            <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </Field>
 
           <Field label="Auteur">
             <Input placeholder="Nadjat" value={form.auteur} onChange={e => setForm(f => ({ ...f, auteur: e.target.value }))} />
@@ -1064,34 +987,14 @@ export default function CommunicationPage() {
         </form>
       </SlideOver>
 
-      <SlideOver open={eventSlideOpen} onClose={() => setEventSlideOpen(false)} title={editingEvent ? `Modifier — ${editingEvent.nom}` : "Nouvel événement"} width="md">
-        <form onSubmit={(e) => { e.preventDefault(); handleSaveEvent() }} className="flex flex-col gap-4">
-          <Field label="Nom de l'événement" required>
-            <Input placeholder="Ex: Portes ouvertes" value={eventForm.nom} onChange={e => setEventForm(f => ({ ...f, nom: e.target.value }))} />
-          </Field>
-          <Field label="Date" required>
-            <Input type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} />
-          </Field>
-          <Field label="Type">
-            <Select value={eventForm.type} onChange={e => setEventForm(f => ({ ...f, type: e.target.value as TypeEvenement }))}>
-              <option value="atelier">Atelier</option>
-              <option value="événement">Événement</option>
-              <option value="cérémonie">Cérémonie</option>
-            </Select>
-          </Field>
-          <SaveButton />
-          {editingEvent && <DeleteButton onClick={handleDeleteEvent} />}
-        </form>
-      </SlideOver>
-
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-100 rounded-xl border border-slate-200 p-4">
           <p className="text-3xl font-bold text-slate-700">{nbBrouillons}</p>
           <p className="text-sm text-slate-500 mt-1">En cours de rédaction</p>
         </div>
-        <div className="bg-finances-light rounded-xl border border-finances/20 p-4">
-          <p className="text-3xl font-bold text-finances-dark">{valides}</p>
-          <p className="text-sm text-finances-dark/70 mt-1">Validés à publier</p>
+        <div className="bg-absences-light rounded-xl border border-absences/20 p-4">
+          <p className="text-3xl font-bold text-absences-dark">{aValider}</p>
+          <p className="text-sm text-absences-dark/70 mt-1">À valider</p>
         </div>
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
           <p className="text-3xl font-bold text-emerald-700">{nbPubliesAnnee}</p>
@@ -1101,10 +1004,9 @@ export default function CommunicationPage() {
 
       <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit">
         {([
-          { id: "calendrier",   icon: <Calendar size={14} />,     label: "Calendrier" },
-          { id: "kanban",       icon: <Columns3 size={14} />,     label: "Validation" },
-          { id: "evenements",   icon: <CalendarDays size={14} />, label: "Événements" },
-          { id: "integrations", icon: <Shuffle size={14} />,      label: "Intégrations" },
+          { id: "calendrier",   icon: <Calendar size={14} />, label: "Calendrier" },
+          { id: "kanban",       icon: <Columns3 size={14} />, label: "Suivi" },
+          { id: "integrations", icon: <Shuffle size={14} />,  label: "Intégrations" },
         ] as const).map(t => (
           <button
             key={t.id}
@@ -1112,15 +1014,13 @@ export default function CommunicationPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === t.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"}`}
           >
             {t.icon} {t.label}
-            {t.id === "evenements" && <span className="text-[10px] bg-absences-light text-absences-dark px-1.5 py-0.5 rounded-full font-semibold">{events.length}</span>}
             {t.id === "integrations" && integrations.zapierEnabled && integrations.zapierWebhookUrl && <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />}
           </button>
         ))}
       </div>
 
-      {tab === "calendrier"   && <CalendrierTab posts={posts} events={events} onNewPost={openNewWithDate} />}
-      {tab === "kanban"       && <KanbanTab posts={posts} onChangeStatus={changeStatus} onEdit={openEdit} />}
-      {tab === "evenements"   && <EventsTab events={events} onEdit={openEditEvent} onNew={openNewEvent} />}
+      {tab === "calendrier"   && <CalendrierTab posts={posts} onNewPost={openNewWithDate} />}
+      {tab === "kanban"       && <KanbanTab posts={posts} rejectedIds={rejectedIds} onChangeStatus={changeStatus} onEdit={openEdit} />}
       {tab === "integrations" && <IntegrationsTab config={integrations} onChange={persistIntegrations} onTest={testWebhook} testStatus={webhookTestStatus} />}
     </div>
   )

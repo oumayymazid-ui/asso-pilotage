@@ -30,7 +30,7 @@ app/
 ├── absences/       Suivi absences du jour + historique
 ├── finances/       Demandes de financement + inscriptions
 ├── ateliers/       Planning + notes apprenantes + composition groupes
-├── communication/  Calendrier éditorial + kanban validation posts (4.2)
+├── communication/  Calendrier éditorial + kanban suivi posts + archive publiés
 ├── benevoles/      Disponibilités bénévoles + gestion événements
 ├── membres/        Annuaire membres (rôles, statuts, CRUD)
 └── roadmap/        Matrice impact/facilité + suivi sous-actions
@@ -113,7 +113,9 @@ Pas de Server Actions, pas d'API routes dans ce projet (voir ADR 001).
 ## Modèle Post (Communication)
 
 ```typescript
-type ValidationStatus = "brouillon" | "en attente de validation" | "validé" | "publié"
+// ⚠️ "en attente de validation" a été renommé "à valider" (branche Cas_4-1-2)
+// Migration auto localStorage au chargement — voir useEffect dans communication/page.tsx
+type ValidationStatus = "brouillon" | "à valider" | "validé" | "publié"
 type CategoriePost = "atelier" | "autre"
 
 interface PlatformeContent { contenu?: string; tags?: string; lien?: string }
@@ -137,7 +139,7 @@ interface Post {
   plateformeContenu: Partial<Record<Plateforme, PlatformeContent>>  // surcharge par plateforme
   statut: ValidationStatus
   auteur: string
-  evenement?: string | null
+  evenement?: string | null          // ⚠️ deprecated UI — champ conservé pour compat localStorage
   sessionId?: number | null          // lien optionnel vers une Session du module Ateliers
   participants?: PostParticipants    // uniquement pour categorie === "atelier"
 }
@@ -153,7 +155,7 @@ Tant qu'il n'est pas configuré, la liste de floutage affiche un message d'alert
 
 **Kanban :** clic sur une carte ouvre directement l'édition (pas de panneau de lecture intermédiaire).
 
-Webhook Zapier : déclenché sur `"validé"` ou `"publié"` (plus `"approuvé"`).
+Webhook Zapier : déclenché sur `"validé"` ou `"publié"`.
 
 ## Page de seed de test (à supprimer avant prod)
 
@@ -187,6 +189,126 @@ IDs réservés : 9001–9099. Supprimer ce fichier + le dossier `app/dev/` avant
 - Compte démo : `admin@asso.fr` / `admin1234`
 
 @AGENTS.md
+
+---
+
+## Travaux Diane-GA — contexte de contribution
+
+> Diane-GA travaille sur un **fork** de `anais0210/asso-pilotage`.
+> À chaque session, synchroniser le fork avant de coder :
+> ```bash
+> git fetch upstream
+> git checkout main && git merge --ff-only upstream/main
+> git push origin main
+> git checkout <branche-travail>
+> ```
+
+### Dépôts
+| Rôle | URL |
+|------|-----|
+| Fork (push) | `github.com/Diane-GA/asso-pilotage` |
+| Upstream (référence) | `github.com/anais0210/asso-pilotage` |
+
+### Branches de travail
+| Branche | Cas | Statut |
+|---------|-----|--------|
+| `cas_4-1-1` | Cas 4.1.1 — améliorations UI calendrier & kanban | Poussée, rebased sur main |
+| `Cas_4-1-2` | Cas 4.1.2 — refonte vue Communication | En cours |
+
+---
+
+## Module Communication — état branche Cas_4-1-2
+
+### Structure fichiers
+```
+app/communication/
+├── page.tsx        Page principale : calendrier, onglet Suivi (kanban), intégrations
+└── publies/
+    └── page.tsx    Archive de tous les posts publiés (lecture seule + SlideOver)
+```
+
+### Clés localStorage — Communication
+| Clé | Type | Contenu |
+|-----|------|---------|
+| `asso-communication-posts` | `Post[]` | Tous les posts |
+| `asso-communication-rejected` | `number[]` | IDs posts repassés en brouillon via ✕ |
+| `asso-communication-integrations` | `IntegrationsConfig` | Config webhook Zapier |
+
+### Onglets de la page Communication
+1. **Calendrier** — posts uniquement, fond coloré par statut, clic sur une date = nouveau post
+2. **Suivi** — kanban 4 colonnes : Brouillon / À valider / Validé / Publié
+3. **Intégrations** — webhook Zapier/Make
+
+> ⚠️ L'onglet **Événements** a été entièrement supprimé (Cas_4-1-2).
+> Toute l'infrastructure associée a été retirée : type `Evenement`, `TypeEvenement`,
+> `EventsTab`, `STORAGE_EVENTS`, `eventsInitiaux`, `emptyEvent`, `TYPE_OPTIONS`.
+> Le champ `evenement` reste dans l'interface `Post` pour compatibilité localStorage
+> mais n'est plus affiché ni éditable.
+
+### Modifications réalisées en Cas_4-1-2
+
+#### 1. Renommage statut `"en attente de validation"` → `"à valider"`
+- Mis à jour partout : type, KANBAN_COLS, statutDot, statutBg, données mock, boutons, formulaire
+- **Migration automatique** au chargement : tout post stocké avec l'ancien libellé est corrigé
+
+```tsx
+// Dans useEffect — migration au boot
+const raw = load<Post[]>(STORAGE_POSTS, postsInitiaux)
+const migrated = raw.map(p =>
+  (p.statut as string) === "en attente de validation" ? { ...p, statut: "à valider" as ValidationStatus } : p
+)
+if (migrated.some((p, i) => p !== raw[i])) localStorage.setItem(STORAGE_POSTS, JSON.stringify(migrated))
+setPosts(migrated)
+```
+
+#### 2. Stat cards (haut de page)
+| Carte | Couleur | Calcul |
+|-------|---------|--------|
+| En cours de rédaction | slate | `statut === "brouillon"` |
+| À valider | absences (orange) | `statut === "à valider"` |
+| Publiés cette année | emerald | `statut === "publié" && date >= 1er jan année en cours` |
+
+#### 3. Cartes kanban — contenu affiché
+- ✅ Titre + badge catégorie (Atelier / Autre)
+- ✅ Vignettes réseaux sociaux (LI / IG / FB)
+- ✅ Date de publication
+- ✅ Boutons de validation
+- ❌ Preview contenu texte (supprimée)
+- ❌ Compteur participants (supprimé)
+
+#### 4. Dot rouge — posts repassés en brouillon
+Quand un post passe de `"à valider"` → `"brouillon"` via le bouton ✕ :
+- Un point rouge apparaît en haut à droite de la carte (`absolute -top-1.5 -right-1.5`)
+- Persisté dans `asso-communication-rejected` (survit au rechargement)
+- Disparaît quand le post repart vers `"à valider"` ou tout autre statut ≠ brouillon
+
+```tsx
+// Dans changeStatus() :
+if (status === "brouillon" && prev?.statut === "à valider") {
+  persistRejected([...rejectedIds, id])
+} else if (status !== "brouillon" && rejectedIds.includes(id)) {
+  persistRejected(rejectedIds.filter(rid => rid !== id))
+}
+
+// Dans la carte kanban :
+{rejectedIds.includes(p.id) && (
+  <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 ring-2 ring-white shadow-sm" />
+)}
+```
+
+#### 5. Colonne "Publié" — vue limitée + archive
+- Affiche les **3 posts les plus récents** (triés par date décroissante)
+- Le compteur en badge affiche le total réel
+- Bouton **"Voir tous les posts publiés"** → `/communication/publies`
+- Page `/communication/publies` : grille 3 colonnes, mêmes cartes que le kanban,
+  clic → SlideOver lecture (titre, contenu, plateformes, médias, participants)
+
+### Logique de travail (préférences Diane-GA)
+- Travailler par **petites modifications ciblées**, une fonctionnalité à la fois
+- Valider TypeScript (`npx tsc --noEmit`) avant chaque commit
+- Commits fréquents avec messages descriptifs en français/anglais mixte
+- Ne pas modifier ce qui n'est pas dans le périmètre de la branche
+- Privilégier la suppression propre (pas de code mort commenté)
 
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
