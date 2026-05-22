@@ -42,6 +42,7 @@ interface Beneficiaire {
   /** Pour un élève : ids des parents Beneficiaire (type=parent) qui le rattachent.
    *  Pour un parent : vide (le lien est porté par la fiche élève). */
   parentIds: number[]
+  droitsImage?: boolean  // consentement photo/vidéo — utilisé par le module Communication
 }
 
 interface Groupe {
