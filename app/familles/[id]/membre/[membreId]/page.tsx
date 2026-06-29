@@ -8,7 +8,7 @@ import JournalSuivi from "@/components/JournalSuivi"
 import { ChevronRight, Phone, Mail, Globe, Plus, Pencil } from "lucide-react"
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
-  addPaiement, updatePaiement, deletePaiement,
+  addPaiement, updatePaiement, deletePaiement, updateInscription,
   calculerAge, type FamilleSheet, type MembreSheet, type PaiementSheet, type InscriptionSheet
 } from "@/lib/sheets-api"
 
@@ -51,6 +51,8 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [payOpen, setPayOpen]   = useState(false)
   const [payEditing, setPayEditing] = useState(false)
   const [payForm, setPayForm]   = useState<Partial<PaiementSheet>>({})
+  const [editAttenduId, setEditAttenduId] = useState<string | null>(null)
+  const [attenduDraft, setAttenduDraft] = useState("")
 
   const loadData = useCallback(async () => {
     try {
@@ -120,6 +122,12 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     if (payForm.ID_Paiement) await deletePaiement(payForm.ID_Paiement)
     await loadData()
     setPayOpen(false)
+  }
+
+  async function handleSaveAttendu(idInscription: string) {
+    await updateInscription(idInscription, { Montant_Du: attenduDraft })
+    await loadData()
+    setEditAttenduId(null)
   }
 
   async function handleDelete() {
@@ -233,6 +241,56 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
             </button>
           )}
         </div>
+
+        {/* Récap par inscription : attendu / payé / reste à payer */}
+        {inscriptions.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {inscriptions.map(insc => {
+              const paye = paiements
+                .filter(p => p.ID_Inscription === insc.ID_Inscription)
+                .reduce((s, p) => s + (Number(p.Montant) || 0), 0)
+              const attenduDefini = insc.Montant_Du !== undefined && insc.Montant_Du !== "" && insc.Montant_Du !== null
+              const attendu = Number(insc.Montant_Du) || 0
+              const reste = attendu - paye
+              const enEdition = editAttenduId === insc.ID_Inscription
+              return (
+                <div key={insc.ID_Inscription} className="rounded-lg border border-border px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <p className="text-sm font-semibold text-foreground">{insc.Annee_Scolaire || "Inscription"}</p>
+                    {attenduDefini && (
+                      reste > 0
+                        ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-absences-light text-absences-dark">Reste à payer {reste} €</span>
+                        : <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-finances-light text-finances-dark">Soldé</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5 text-xs text-muted flex-wrap">
+                    <span>Payé <span className="font-medium text-foreground">{paye} €</span></span>
+                    <span>·</span>
+                    {enEdition ? (
+                      <span className="flex items-center gap-1.5">
+                        Attendu
+                        <input type="number" autoFocus value={attenduDraft}
+                          onChange={e => setAttenduDraft(e.target.value)}
+                          className="w-20 px-2 py-1 rounded-lg border border-border text-sm" />
+                        <button onClick={() => handleSaveAttendu(insc.ID_Inscription)} className="text-familles-dark font-medium hover:underline">OK</button>
+                        <button onClick={() => setEditAttenduId(null)} className="text-muted hover:underline">Annuler</button>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        Attendu <span className="font-medium text-foreground">{attenduDefini ? `${attendu} €` : "non défini"}</span>
+                        <button
+                          onClick={() => { setEditAttenduId(insc.ID_Inscription); setAttenduDraft(attenduDefini ? String(attendu) : "") }}
+                          className="text-familles-dark hover:text-familles-dark" aria-label="Modifier le montant attendu" title="Modifier le montant attendu">
+                          <Pencil size={12} />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {paiements.length === 0 ? (
           <p className="text-sm text-muted italic">

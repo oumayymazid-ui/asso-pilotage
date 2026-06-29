@@ -36,6 +36,8 @@ function doPost(e) {
     else if (a === "addPaiement") result = addPaiement(ss, body.data);
     else if (a === "updatePaiement") result = updatePaiement(ss, body.idPaiement, body.data);
     else if (a === "deletePaiement") result = deletePaiement(ss, body.idPaiement);
+    else if (a === "updateInscription") result = updateInscription(ss, body.idInscription, body.data);
+    else if (a === "ensureMontantDuColumn") result = ensureMontantDuColumn(ss);
     else result = { error: "Action inconnue : " + a };
     return jsonResponse(result);
   } catch (err) {
@@ -257,7 +259,8 @@ function mapInscription(i) {
     Annee_Scolaire: i["Annee scolaire"], Type_Apprenant: i["Type apprenant"],
     Statut: i["Statut"], Niveau: i["Niveau / Classe"], Disponibilite: i["Disponibilite"],
     Orientation: i["Orientation"], Date_Inscription: fmtDate(i["Date d'inscription"]),
-    Beneficiaire: i["Beneficiaire"], Montant_Adhesion: i["Montant adhesion"], Remarques: i["Remarques"]
+    Beneficiaire: i["Beneficiaire"], Montant_Adhesion: i["Montant adhesion"], Remarques: i["Remarques"],
+    Montant_Du: i["Montant du"] !== undefined && i["Montant du"] !== "" ? i["Montant du"] : ""
   };
 }
 
@@ -293,6 +296,25 @@ function updatePaiement(ss, idPaiement, data) {
 function deletePaiement(ss, idPaiement) {
   var n = deleteRowsWhere(ss.getSheetByName("PAIEMENT"), "ID", [String(idPaiement)]);
   return n > 0 ? { ok: true } : { error: "Paiement introuvable" };
+}
+
+function updateInscription(ss, idInscription, data) {
+  var sh = ss.getSheetByName("INSCRIPTION");
+  var map = {};
+  if (data.Montant_Du !== undefined) map["Montant du"] = data.Montant_Du;
+  if (data.Statut !== undefined) map["Statut"] = data.Statut;
+  if (data.Niveau !== undefined) map["Niveau / Classe"] = data.Niveau;
+  var ok = updateRowByHeader(sh, idInscription, map);
+  return ok ? { ok: true } : { error: "Inscription introuvable" };
+}
+
+function ensureMontantDuColumn(ss) {
+  var sh = ss.getSheetByName("INSCRIPTION");
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf("Montant du") >= 0) return { ok: true, deja: true };
+  sh.getRange(1, lastCol + 1).setValue("Montant du");
+  return { ok: true, ajoute: true, colonne: lastCol + 1 };
 }
 
 function ensureCommentaireColumn(ss) {
