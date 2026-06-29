@@ -45,6 +45,22 @@ function horodatage() {
   }
 }
 
+// libellé de groupe de date : Aujourd'hui / Hier / la date
+function labelDate(dateFr: string) {
+  if (!dateFr) return "Sans date"
+  const now = new Date()
+  const p2 = (n: number) => String(n).padStart(2, "0")
+  const today = `${p2(now.getDate())}/${p2(now.getMonth() + 1)}/${now.getFullYear()}`
+  const y = new Date(now.getTime() - 86400000)
+  const hier = `${p2(y.getDate())}/${p2(y.getMonth() + 1)}/${y.getFullYear()}`
+  if (dateFr === today) return "Aujourd'hui"
+  if (dateFr === hier) return "Hier"
+  return dateFr
+}
+
+const LIMITE_REPLI = 5
+const TYPE_LABEL: Record<string, string> = { commentaire: "Commentaires", appel: "Appels", email: "Emails" }
+
 export default function JournalSuivi({
   notes,
   onSave,
@@ -67,6 +83,8 @@ export default function JournalSuivi({
   const [emailSens, setEmailSens] = useState<"recu" | "envoye">("envoye")
   const [emailDraft, setEmailDraft] = useState("")
   const [saving, setSaving] = useState(false)
+  const [filtre, setFiltre] = useState<"tout" | "commentaire" | "appel" | "email">("tout")
+  const [toutAfficher, setToutAfficher] = useState(false)
 
   async function persist(liste: Entree[]) {
     setSaving(true)
@@ -99,6 +117,35 @@ export default function JournalSuivi({
     liste.splice(index, 1)
     await persist(liste)
   }
+
+  // ── Préparation de l'affichage : filtre → tri récent → repli → groupes par date ──
+  const counts = {
+    commentaire: entrees.filter(e => e.type === "commentaire").length,
+    appel: entrees.filter(e => e.type === "appel").length,
+    email: entrees.filter(e => e.type === "email").length,
+  }
+  const typesPresents = (["commentaire", "appel", "email"] as const).filter(t => counts[t] > 0)
+  const afficheFiltres = typesPresents.length > 1
+
+  const avecIndex = entrees.map((c, idx) => ({ c, idx }))
+  const filtres = filtre === "tout" ? avecIndex : avecIndex.filter(x => x.c.type === filtre)
+  const ordonnes = [...filtres].reverse()                              // plus récent d'abord
+  const total = ordonnes.length
+  const visibles = toutAfficher ? ordonnes : ordonnes.slice(0, LIMITE_REPLI)
+
+  // regroupement par date en conservant l'ordre
+  const groupes: { label: string; items: typeof visibles }[] = []
+  for (const it of visibles) {
+    const label = labelDate(it.c.date)
+    const dernier = groupes[groupes.length - 1]
+    if (dernier && dernier.label === label) dernier.items.push(it)
+    else groupes.push({ label, items: [it] })
+  }
+
+  const chips: { key: "tout" | "commentaire" | "appel" | "email"; label: string; n: number }[] = [
+    { key: "tout", label: "Tout", n: entrees.length },
+    ...typesPresents.map(t => ({ key: t, label: TYPE_LABEL[t], n: counts[t] })),
+  ]
 
   return (
     <div className="bg-surface border border-border rounded-xl p-5 mb-6">
@@ -198,40 +245,71 @@ export default function JournalSuivi({
         </div>
       )}
 
+      {/* Filtres par type */}
+      {afficheFiltres && (
+        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+          {chips.map(ch => (
+            <button key={ch.key} onClick={() => { setFiltre(ch.key); setToutAfficher(false) }}
+              className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                filtre === ch.key ? "bg-familles text-white" : "bg-slate-100 text-muted hover:text-foreground"}`}>
+              {ch.label} <span className="opacity-70">{ch.n}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {entrees.length === 0 && !addingComment && !addingCall && !addingEmail ? (
         <p className="text-sm text-muted italic">
           {allowCall || allowEmail
             ? "Aucune entrée. Ajoutez un commentaire, un appel ou un email."
             : "Aucun commentaire. Cliquez sur « Commentaire » pour en ajouter un."}
         </p>
+      ) : total === 0 ? (
+        <p className="text-sm text-muted italic">Aucune entrée de ce type.</p>
       ) : (
-        <ul className="space-y-3">
-          {entrees.map((c, idx) => ({ c, idx })).reverse().map(({ c, idx }) => (
-            <li key={idx} className={`group border-l-2 pl-3 flex items-start justify-between gap-3 ${
-              c.type === "appel" ? "border-benevoles/50" : c.type === "email" ? "border-communication/50" : "border-familles/40"}`}>
-              <div className="min-w-0">
-                <p className="text-xs text-muted mb-0.5 flex items-center gap-1.5 flex-wrap">
-                  {c.type === "appel" && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-benevoles-light text-benevoles-dark font-medium">
-                      <Phone size={11} />Appel {c.sens === "entrant" ? "entrant" : "sortant"}
-                    </span>
-                  )}
-                  {c.type === "email" && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-communication-light text-communication-dark font-medium">
-                      <Mail size={11} />Email {c.sens === "recu" ? "reçu" : "envoyé"}
-                    </span>
-                  )}
-                  {(c.date || c.heure) && <span>{c.date}{c.date && c.heure ? " à " : ""}{c.heure}</span>}
-                </p>
-                {c.texte && <p className="text-sm text-foreground whitespace-pre-wrap">{c.texte}</p>}
+        <>
+          <div className="space-y-4">
+            {groupes.map(g => (
+              <div key={g.label}>
+                <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">{g.label}</p>
+                <ul className="space-y-3">
+                  {g.items.map(({ c, idx }) => (
+                    <li key={idx} className={`group border-l-2 pl-3 flex items-start justify-between gap-3 ${
+                      c.type === "appel" ? "border-benevoles/50" : c.type === "email" ? "border-communication/50" : "border-familles/40"}`}>
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted mb-0.5 flex items-center gap-1.5 flex-wrap">
+                          {c.type === "appel" && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-benevoles-light text-benevoles-dark font-medium">
+                              <Phone size={11} />Appel {c.sens === "entrant" ? "entrant" : "sortant"}
+                            </span>
+                          )}
+                          {c.type === "email" && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-communication-light text-communication-dark font-medium">
+                              <Mail size={11} />Email {c.sens === "recu" ? "reçu" : "envoyé"}
+                            </span>
+                          )}
+                          {c.heure && <span>{c.heure}</span>}
+                        </p>
+                        {c.texte && <p className="text-sm text-foreground whitespace-pre-wrap">{c.texte}</p>}
+                      </div>
+                      <button onClick={() => handleDelete(idx)} aria-label="Supprimer cette entrée" title="Supprimer"
+                        className="shrink-0 p-1 rounded text-muted hover:text-absences-dark hover:bg-absences-light transition-colors">
+                        <X size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <button onClick={() => handleDelete(idx)} aria-label="Supprimer cette entrée" title="Supprimer"
-                className="shrink-0 p-1 rounded text-muted hover:text-absences-dark hover:bg-absences-light transition-colors">
-                <X size={14} />
-              </button>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+
+          {total > LIMITE_REPLI && (
+            <button onClick={() => setToutAfficher(v => !v)}
+              className="mt-4 text-sm font-medium text-familles-dark hover:underline">
+              {toutAfficher ? "Afficher moins" : `Afficher tout (${total})`}
+            </button>
+          )}
+        </>
       )}
     </div>
   )
