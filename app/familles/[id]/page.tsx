@@ -112,7 +112,6 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-familles-dark">{famille.Nom_Famille}</h1>
-          <p className="text-xs text-muted mt-0.5">{id}</p>
         </div>
         <button
           onClick={() => { setFamilleForm({ Nom_Famille: famille.Nom_Famille, Adresse: famille.Adresse, Code_Postal: famille.Code_Postal, Ville: famille.Ville, Quartier_QVP: famille.Quartier_QVP }); setSlideMode("edit"); setSlideOpen(true) }}
