@@ -15,7 +15,6 @@ function doGet(e) {
     else if (action === "getMembres") result = getMembres(ss, e.parameter.idFamille);
     else if (action === "getMembre") result = getMembre(ss, e.parameter.idMembre);
     else if (action === "getPaiements") result = getPaiements(ss, e.parameter.idMembre);
-    else if (action === "getTaches") result = getTaches(ss, e.parameter.cibleType, e.parameter.cibleId);
     else result = { error: "Action inconnue : " + action };
     return jsonResponse(result);
   } catch (err) {
@@ -34,10 +33,6 @@ function doPost(e) {
     else if (a === "updateMembre") result = updateMembre(ss, body.idMembre, body.data);
     else if (a === "deleteMembre") result = deleteMembre(ss, body.idMembre);
     else if (a === "ensureCommentaireColumn") result = ensureCommentaireColumn(ss);
-    else if (a === "ensureTacheSheet") result = ensureTacheSheet(ss);
-    else if (a === "addTache") result = addTache(ss, body.data);
-    else if (a === "updateTache") result = updateTache(ss, body.idTache, body.data);
-    else if (a === "deleteTache") result = deleteTache(ss, body.idTache);
     else result = { error: "Action inconnue : " + a };
     return jsonResponse(result);
   } catch (err) {
@@ -262,73 +257,6 @@ function mapInscription(i) {
   };
 }
 
-// ── TACHES ────────────────────────────────────────────────
-
-var TACHE_HEADERS = ["ID", "Cible_Type", "Cible_ID", "Titre", "Echeance", "Statut", "Assigne_A", "Date_Creation"];
-
-function ensureTacheSheet(ss) {
-  var sh = ss.getSheetByName("TACHE");
-  if (!sh) {
-    sh = ss.insertSheet("TACHE");
-    sh.getRange(1, 1, 1, TACHE_HEADERS.length).setValues([TACHE_HEADERS]);
-    return { ok: true, cree: true };
-  }
-  return { ok: true, deja: true };
-}
-
-function getTaches(ss, cibleType, cibleId) {
-  var taches = sheetToObjects(ss, "TACHE");
-  return taches
-    .filter(function(t) { return String(t["Cible_Type"]) === String(cibleType) && String(t["Cible_ID"]) === String(cibleId); })
-    .map(mapTache);
-}
-
-function addTache(ss, data) {
-  ensureTacheSheet(ss);
-  var sh = ss.getSheetByName("TACHE");
-  var id = nextId(sh);
-  appendByHeader(sh, {
-    "ID": id,
-    "Cible_Type": data.Cible_Type || "",
-    "Cible_ID": data.Cible_ID || "",
-    "Titre": data.Titre || "",
-    "Echeance": data.Echeance || "",
-    "Statut": data.Statut || "A faire",
-    "Assigne_A": data.Assigne_A || "",
-    "Date_Creation": fmtDate(new Date())
-  });
-  return { ok: true, ID_Tache: String(id) };
-}
-
-function updateTache(ss, idTache, data) {
-  var sh = ss.getSheetByName("TACHE");
-  var map = {};
-  if (data.Titre !== undefined) map["Titre"] = data.Titre;
-  if (data.Echeance !== undefined) map["Echeance"] = data.Echeance;
-  if (data.Statut !== undefined) map["Statut"] = data.Statut;
-  if (data.Assigne_A !== undefined) map["Assigne_A"] = data.Assigne_A;
-  var ok = updateRowByHeader(sh, idTache, map);
-  return ok ? { ok: true } : { error: "Tache introuvable" };
-}
-
-function deleteTache(ss, idTache) {
-  var n = deleteRowsWhere(ss.getSheetByName("TACHE"), "ID", [String(idTache)]);
-  return n > 0 ? { ok: true } : { error: "Tache introuvable" };
-}
-
-function mapTache(t) {
-  return {
-    ID_Tache: String(t["ID"]),
-    Cible_Type: t["Cible_Type"],
-    Cible_ID: String(t["Cible_ID"]),
-    Titre: t["Titre"],
-    Echeance: t["Echeance"] ? fmtDateISO(t["Echeance"]) : "",
-    Statut: t["Statut"] || "A faire",
-    Assigne_A: t["Assigne_A"] || "",
-    Date_Creation: t["Date_Creation"] ? fmtDate(t["Date_Creation"]) : ""
-  };
-}
-
 function ensureCommentaireColumn(ss) {
   var res = {};
   ["PERSONNE", "FAMILLE"].forEach(function(nom) {
@@ -413,12 +341,6 @@ function parseDateFr(s) {
 function fmtDate(v) {
   if (!v) return "";
   if (Object.prototype.toString.call(v) === "[object Date]") return Utilities.formatDate(v, "Europe/Paris", "dd/MM/yyyy");
-  return String(v);
-}
-
-function fmtDateISO(v) {
-  if (!v) return "";
-  if (Object.prototype.toString.call(v) === "[object Date]") return Utilities.formatDate(v, "Europe/Paris", "yyyy-MM-dd");
   return String(v);
 }
 

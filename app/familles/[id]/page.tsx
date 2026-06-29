@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation"
 import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
 import AdresseAutocomplete from "@/components/AdresseAutocomplete"
-import TachesBlock from "@/components/TachesBlock"
 import { ChevronRight, Pencil, Plus, MapPin } from "lucide-react"
 import {
   fetchFamilles, fetchMembres, updateFamille, addMembre, deleteMembre,
@@ -203,9 +202,8 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
         })}
       </div>
 
-      {/* Tâches + journal de suivi de la famille */}
+      {/* Journal de suivi de la famille */}
       <div className="mt-8">
-        <TachesBlock cibleType="Famille" cibleId={id} />
         <JournalSuivi notes={famille.Notes} onSave={handleSaveNotes} allowCall={false} allowEmail={false} />
       </div>
 

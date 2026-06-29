@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
-import TachesBlock from "@/components/TachesBlock"
 import { ChevronRight, Phone, Mail, Globe } from "lucide-react"
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
@@ -182,9 +181,6 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
           <InfoRow label="Source d'orientation" value={String(membre.Source_Orientation || "")} />
         </div>
       </div>
-
-      {/* Tâches */}
-      <TachesBlock cibleType="Membre" cibleId={membreId} />
 
       {/* Journal : commentaires + appels + emails */}
       <JournalSuivi notes={membre.Notes} onSave={handleSaveNotes} />

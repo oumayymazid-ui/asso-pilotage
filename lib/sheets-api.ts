@@ -73,17 +73,6 @@ export interface PaiementSheet {
   Date_Virement: string
 }
 
-export interface TacheSheet {
-  ID_Tache: string
-  Cible_Type: "Membre" | "Famille" | string
-  Cible_ID: string
-  Titre: string
-  Echeance: string            // ISO AAAA-MM-JJ
-  Statut: "A faire" | "Fait" | string
-  Assigne_A: string
-  Date_Creation: string
-}
-
 // ── Helpers ────────────────────────────────────
 
 function str(v: unknown): string {
@@ -177,24 +166,6 @@ export async function updateMembre(idMembre: string, data: Partial<MembreSheet>)
 
 export async function deleteMembre(idMembre: string): Promise<{ ok: boolean }> {
   return apiPost({ action: "deleteMembre", idMembre }) as Promise<{ ok: boolean }>
-}
-
-// ── Tâches ──────────────────────────────────────
-
-export async function fetchTaches(cibleType: string, cibleId: string): Promise<TacheSheet[]> {
-  return apiGet("getTaches", { cibleType, cibleId }) as Promise<TacheSheet[]>
-}
-
-export async function addTache(data: Partial<TacheSheet>): Promise<{ ok: boolean, ID_Tache: string }> {
-  return apiPost({ action: "addTache", data }) as Promise<{ ok: boolean, ID_Tache: string }>
-}
-
-export async function updateTache(idTache: string, data: Partial<TacheSheet>): Promise<{ ok: boolean }> {
-  return apiPost({ action: "updateTache", idTache, data }) as Promise<{ ok: boolean }>
-}
-
-export async function deleteTache(idTache: string): Promise<{ ok: boolean }> {
-  return apiPost({ action: "deleteTache", idTache }) as Promise<{ ok: boolean }>
 }
 
 // ── Indicateur de configuration ────────────────
