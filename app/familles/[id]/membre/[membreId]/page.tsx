@@ -3,51 +3,28 @@
 import { useState, useEffect, useCallback, use } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import SlideOver, { Field, Input, Select, Textarea, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
-import { ChevronRight, Phone, Mail, MapPin, Users, UserCheck } from "lucide-react"
+import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
+import JournalSuivi from "@/components/JournalSuivi"
+import TachesBlock from "@/components/TachesBlock"
+import { ChevronRight, Phone, Mail, Globe } from "lucide-react"
 import {
-  type BeneficiaireParent,
-  type BeneficiaireEnfant,
-  type Groupe,
-  type Inscription,
-  type Famille,
-  getStatut,
-} from "@/lib/familles-data"
-import { fetchAllData, saveParent, saveEnfant, removeContact } from "@/lib/sheets-api"
+  fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
+  calculerAge, type FamilleSheet, type MembreSheet, type PaiementSheet
+} from "@/lib/sheets-api"
 
-// ──────────────────────────────────────────────
-// Helpers styles
-// ──────────────────────────────────────────────
-const groupeStyle: Record<string, string> = {
+const niveauStyle: Record<string, string> = {
   "Alpha":  "bg-slate-100 text-slate-600",
-  "Pré-A1": "bg-absences-light text-absences-dark",
-  "A1":     "bg-ateliers-light text-ateliers-dark",
-  "A2":     "bg-finances-light text-finances-dark",
-}
-
-const inscriptionStyle: Record<string, string> = {
-  "Payé":    "bg-finances-light text-finances-dark",
-  "À payer": "bg-absences-light text-absences-dark",
-  "Exonéré": "bg-slate-100 text-slate-600",
+  "A1-":    "bg-absences-light text-absences-dark",
+  "A1+":    "bg-absences-light text-absences-dark",
+  "A2-":    "bg-ateliers-light text-ateliers-dark",
+  "A2+/B1": "bg-finances-light text-finances-dark",
 }
 
 const statutStyle: Record<string, string> = {
-  "Actif":        "bg-finances-light text-finances-dark",
-  "À surveiller": "bg-ateliers-light text-ateliers-dark",
-  "Abandon":      "bg-absences-light text-absences-dark",
-}
-
-function calculerAge(dateStr: string): number | null {
-  const parts = dateStr.split("/")
-  if (parts.length !== 3) return null
-  const [day, month, year] = parts.map(Number)
-  if (isNaN(day) || isNaN(month) || isNaN(year) || year < 1900 || year > 2100) return null
-  const today = new Date()
-  const naissance = new Date(year, month - 1, day)
-  let age = today.getFullYear() - naissance.getFullYear()
-  const m = today.getMonth() - naissance.getMonth()
-  if (m < 0 || (m === 0 && today.getDate() < naissance.getDate())) age--
-  return age >= 0 ? age : null
+  "EN COURS": "bg-finances-light text-finances-dark",
+  "SUSPENDU": "bg-ateliers-light text-ateliers-dark",
+  "ARRÊTÉ":   "bg-absences-light text-absences-dark",
+  "ARRETE":   "bg-absences-light text-absences-dark",
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -60,81 +37,66 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
   )
 }
 
-// ──────────────────────────────────────────────
-// Page
-// ──────────────────────────────────────────────
 export default function FicheMembrePage({ params }: { params: Promise<{ id: string; membreId: string }> }) {
   const { id, membreId } = use(params)
   const router = useRouter()
 
-  const [familles, setFamilles] = useState<Famille[]>([])
-  const [parents,  setParents]  = useState<BeneficiaireParent[]>([])
-  const [enfants,  setEnfants]  = useState<BeneficiaireEnfant[]>([])
-  const [loading,  setLoading]  = useState(true)
+  const [famille, setFamille]   = useState<FamilleSheet | null>(null)
+  const [membre, setMembre]     = useState<MembreSheet | null>(null)
+  const [paiements, setPaiements] = useState<PaiementSheet[]>([])
+  const [loading, setLoading]   = useState(true)
   const [slideOpen, setSlideOpen] = useState(false)
+  const [form, setForm]         = useState<Partial<MembreSheet>>({})
 
   const loadData = useCallback(async () => {
-    const data = await fetchAllData()
-    setFamilles(data.familles)
-    setParents(data.parents)
-    setEnfants(data.enfants)
-    setLoading(false)
-  }, [])
+    try {
+      const [familles, m, p] = await Promise.all([
+        fetchFamilles(),
+        fetchMembre(membreId),
+        fetchPaiements(membreId),
+      ])
+      setFamille(familles.find(f => f.ID_Famille === id) ?? null)
+      setMembre(m)
+      setForm(m)
+      setPaiements(p)
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
+  }, [id, membreId])
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Détermine le type en cherchant dans les deux listes
-  const parent = parents.find(p => p.id === membreId)
-  const enfant = enfants.find(e => e.id === membreId)
-  const isParent = !!parent
-  const famille  = familles.find(f => f.id === id)
-  const membre = parent ?? enfant
-
-  // ── État du formulaire ────────────────────────
-  const [form, setForm] = useState<BeneficiaireParent | BeneficiaireEnfant | null>(null)
-  useEffect(() => { if (membre) setForm({ ...membre }) }, [membreId, parents, enfants])
-
   if (loading) return (
     <div className="p-6 flex items-center justify-center min-h-[300px]">
-      <p className="text-muted text-sm">Chargement des données…</p>
+      <p className="text-muted text-sm">Chargement…</p>
     </div>
   )
 
-  if (!membre || !famille || !form) {
-    return (
-      <div className="p-6">
-        <p className="text-muted">Membre introuvable.</p>
-        <Link href={`/familles/${id}`} className="text-familles-dark underline text-sm mt-2 inline-block">← Retour</Link>
-      </div>
-    )
-  }
+  if (!membre) return (
+    <div className="p-6">
+      <p className="text-muted">Membre introuvable.</p>
+      <Link href={`/familles/${id}`} className="text-familles-dark underline text-sm mt-2 inline-block">← Retour</Link>
+    </div>
+  )
 
-  const typeLabel = isParent ? "Parent" : "Enfant"
-  const TypeIcon  = isParent ? Users : UserCheck
-
-  // ── Sauvegarde ────────────────────────────────
   async function handleSave() {
-    if (!form) return
-    if (isParent) {
-      await saveParent(form as BeneficiaireParent, false)
-    } else {
-      await saveEnfant(form as BeneficiaireEnfant, false)
-    }
+    await updateMembre(membreId, form)
     await loadData()
     setSlideOpen(false)
   }
 
-  // ── Suppression ───────────────────────────────
+  async function handleSaveNotes(json: string) {
+    await updateMembre(membreId, { Notes: json })
+    await loadData()
+  }
+
   async function handleDelete() {
-    await removeContact(membreId)
+    await deleteMembre(membreId)
     router.push(`/familles/${id}`)
   }
 
-  const f = form as BeneficiaireParent & BeneficiaireEnfant
+  const statut = membre.Statut_Inscription?.toString().toUpperCase() ?? ""
+  const age = membre.Date_Naissance ? calculerAge(String(membre.Date_Naissance)) : null
 
-  // ──────────────────────────────────────────────
-  // Rendu
-  // ──────────────────────────────────────────────
   return (
     <div className="p-6 max-w-3xl mx-auto">
 
@@ -142,34 +104,35 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       <nav className="flex items-center gap-1.5 text-sm text-muted mb-5 flex-wrap">
         <Link href="/familles" className="hover:text-familles-dark transition-colors">Familles</Link>
         <ChevronRight size={14} />
-        <Link href={`/familles/${id}`} className="hover:text-familles-dark transition-colors">{famille.nomFamille}</Link>
+        <Link href={`/familles/${id}`} className="hover:text-familles-dark transition-colors">
+          {famille?.Nom_Famille ?? id}
+        </Link>
         <ChevronRight size={14} />
-        <span className="text-foreground font-medium">{membre.prenom} {membre.nom}</span>
+        <span className="text-foreground font-medium">{membre.Prenom}</span>
       </nav>
 
       {/* En-tête */}
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
-              isParent ? "bg-ateliers-light text-ateliers-dark" : "bg-familles-light text-familles-dark"
-            }`}>
-              <TypeIcon size={11} />
-              {typeLabel}
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-familles-light text-familles-dark">
+              {membre.Role || "Membre"}
             </span>
-            {membre.groupe && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${groupeStyle[membre.groupe] ?? "bg-slate-100 text-slate-600"}`}>
-                {membre.groupe}
+            {membre.Niveau && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${niveauStyle[membre.Niveau] ?? "bg-slate-100 text-slate-600"}`}>
+                {membre.Niveau}
               </span>
             )}
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statutStyle[getStatut(membre.assiduite)]}`}>
-              {getStatut(membre.assiduite)}
-            </span>
+            {statut && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statutStyle[statut] ?? "bg-slate-100 text-slate-600"}`}>
+                {statut}
+              </span>
+            )}
           </div>
-          <h1 className="text-2xl font-bold text-foreground">{membre.prenom} {membre.nom}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{membre.Prenom} {membre.Nom}</h1>
         </div>
         <button
-          onClick={() => setSlideOpen(true)}
+          onClick={() => { setForm({ ...membre }); setSlideOpen(true) }}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-familles-light text-familles-dark text-sm font-medium hover:bg-familles hover:text-white transition-colors shrink-0"
         >
           Modifier
@@ -179,168 +142,147 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       {/* Carte infos */}
       <div className="bg-surface border border-border rounded-xl p-5 grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
 
-        {/* Contact */}
-        <div className="flex items-start gap-2">
-          <Phone size={15} className="text-muted mt-0.5 shrink-0" />
-          <div className="space-y-1">
-            <InfoRow label="Téléphone" value={membre.telephone} />
-            {membre.whatsapp && membre.whatsapp !== membre.telephone && (
-              <InfoRow label="WhatsApp" value={membre.whatsapp} />
-            )}
-          </div>
-        </div>
-
-        {membre.email && (
+        {(membre.Telephone || membre.WhatsApp) && (
           <div className="flex items-start gap-2">
-            <Mail size={15} className="text-muted mt-0.5 shrink-0" />
-            <InfoRow label="Email" value={membre.email} />
+            <Phone size={15} className="text-muted mt-0.5 shrink-0" />
+            <div className="space-y-2">
+              <InfoRow label="Téléphone" value={String(membre.Telephone || "")} />
+              {membre.WhatsApp && membre.WhatsApp !== membre.Telephone && (
+                <InfoRow label="WhatsApp" value={String(membre.WhatsApp)} />
+              )}
+            </div>
           </div>
         )}
 
-        <div className="flex items-start gap-2">
-          <MapPin size={15} className="text-muted mt-0.5 shrink-0" />
-          <div>
-            <p className="text-xs text-muted mb-0.5">Adresse</p>
-            <p className="text-sm font-medium">{membre.adresse || "—"}</p>
-            {membre.codePostal && <p className="text-sm text-muted">{membre.codePostal} {membre.ville}</p>}
+        {membre.Email && (
+          <div className="flex items-start gap-2">
+            <Mail size={15} className="text-muted mt-0.5 shrink-0" />
+            <InfoRow label="Email" value={String(membre.Email)} />
           </div>
+        )}
+
+        {(membre.Pays_Origine || membre.Langue_Maternelle) && (
+          <div className="flex items-start gap-2">
+            <Globe size={15} className="text-muted mt-0.5 shrink-0" />
+            <div className="space-y-2">
+              <InfoRow label="Pays d'origine" value={String(membre.Pays_Origine || "")} />
+              <InfoRow label="Langue maternelle" value={String(membre.Langue_Maternelle || "")} />
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <InfoRow label="Genre" value={String(membre.Genre || "")} />
+          <InfoRow label="Date de naissance" value={String(membre.Date_Naissance || "")} />
+          {age !== null && <InfoRow label="Âge" value={`${age} ans`} />}
+          <InfoRow label="Nb. enfants accompagnants" value={membre.Nb_Enfants ? String(membre.Nb_Enfants) : null} />
         </div>
 
-        <div className="space-y-3">
-          <InfoRow label="Inscriptions" value={membre.inscriptions} />
-          {!isParent && (enfant as BeneficiaireEnfant).autorisationParentale && (
-            <InfoRow label="Autorisation parentale" value={(enfant as BeneficiaireEnfant).autorisationParentale} />
-          )}
-          <InfoRow label="Date de naissance" value={membre.dateNaissance} />
-          <InfoRow label="Âge" value={membre.age != null ? `${membre.age} ans` : undefined} />
-        </div>
-      </div>
-
-      {/* Résultats */}
-      <div className="bg-surface border border-border rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Résultats & assiduité</h2>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div className="bg-slate-50 rounded-lg p-3">
-            <p className="text-xs text-muted mb-1">Test 1</p>
-            <p className="text-xl font-bold text-foreground">
-              {membre.test1 !== null ? `${membre.test1}/20` : "—"}
-            </p>
-          </div>
-          <div className="bg-slate-50 rounded-lg p-3">
-            <p className="text-xs text-muted mb-1">Test 2</p>
-            <p className="text-xl font-bold text-foreground">
-              {membre.test2 !== null ? `${membre.test2}/20` : "—"}
-            </p>
-          </div>
-          <div className="bg-familles-light rounded-lg p-3">
-            <p className="text-xs text-familles-dark mb-1">Assiduité</p>
-            <p className="text-xl font-bold text-familles-dark">{membre.assiduite}%</p>
-          </div>
+        <div className="space-y-2">
+          <InfoRow label="Source d'orientation" value={String(membre.Source_Orientation || "")} />
         </div>
       </div>
 
-      {/* ── SlideOver modification ───────────────── */}
+      {/* Tâches */}
+      <TachesBlock cibleType="Membre" cibleId={membreId} />
+
+      {/* Journal : commentaires + appels + emails */}
+      <JournalSuivi notes={membre.Notes} onSave={handleSaveNotes} />
+
+      {/* Paiements */}
+      {paiements.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-5 mb-6">
+          <h2 className="text-sm font-semibold text-foreground mb-4">
+            Paiements
+            <span className="ml-2 text-xs font-normal text-muted">({paiements.length})</span>
+          </h2>
+          <div className="space-y-2">
+            {paiements.map(p => (
+              <div key={p.ID_Paiement} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-bold text-familles-dark shrink-0">
+                    {p.Montant ? `${p.Montant} €` : "—"}
+                  </span>
+                  {p.Mode_Paiement && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-familles-light text-familles-dark">
+                      {p.Mode_Paiement}
+                    </span>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-medium text-foreground">{p.Date_Paiement || "—"}</p>
+                  {p.Date_Virement && (
+                    <p className="text-xs text-muted">Virement {p.Date_Virement}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SlideOver modification */}
       <SlideOver
         open={slideOpen}
         onClose={() => setSlideOpen(false)}
-        title={`Modifier — ${membre.prenom} ${membre.nom}`}
-        subtitle={typeLabel}
+        title={`Modifier — ${membre.Prenom}`}
         width="md"
       >
         <form onSubmit={e => { e.preventDefault(); handleSave() }} className="flex flex-col gap-4">
+          <Field label="Rôle">
+            <Select value={String(form.Role ?? "")} onChange={e => setForm(f => ({ ...f, Role: e.target.value }))}>
+              <option value="Adulte">Adulte</option>
+              <option value="Enfant">Enfant</option>
+            </Select>
+          </Field>
           <FormRow>
-            <Field label="Nom" required>
-              <Input value={f.nom} onChange={e => setForm(prev => prev && ({ ...prev, nom: e.target.value }))} />
-            </Field>
             <Field label="Prénom" required>
-              <Input value={f.prenom} onChange={e => setForm(prev => prev && ({ ...prev, prenom: e.target.value }))} />
+              <Input value={String(form.Prenom ?? "")} onChange={e => setForm(f => ({ ...f, Prenom: e.target.value }))} />
+            </Field>
+            <Field label="Nom">
+              <Input value={String(form.Nom ?? "")} onChange={e => setForm(f => ({ ...f, Nom: e.target.value }))} />
             </Field>
           </FormRow>
           <Field label="Téléphone">
-            <Input value={f.telephone} onChange={e => setForm(prev => prev && ({ ...prev, telephone: e.target.value }))} />
+            <Input value={String(form.Telephone ?? "")} onChange={e => setForm(f => ({ ...f, Telephone: e.target.value }))} />
           </Field>
           <Field label="Email">
-            <Input type="email" value={f.email} onChange={e => setForm(prev => prev && ({ ...prev, email: e.target.value }))} />
+            <Input type="email" value={String(form.Email ?? "")} onChange={e => setForm(f => ({ ...f, Email: e.target.value }))} />
           </Field>
           <Field label="WhatsApp">
-            <Input value={f.whatsapp} onChange={e => setForm(prev => prev && ({ ...prev, whatsapp: e.target.value }))} />
-          </Field>
-          <Field label="Adresse">
-            <Input value={f.adresse} onChange={e => setForm(prev => prev && ({ ...prev, adresse: e.target.value }))} />
+            <Input value={String(form.WhatsApp ?? "")} onChange={e => setForm(f => ({ ...f, WhatsApp: e.target.value }))} />
           </Field>
           <FormRow>
-            <Field label="Code postal">
-              <Input value={f.codePostal} onChange={e => setForm(prev => prev && ({ ...prev, codePostal: e.target.value }))} />
+            <Field label="Pays d'origine">
+              <Input value={String(form.Pays_Origine ?? "")} onChange={e => setForm(f => ({ ...f, Pays_Origine: e.target.value }))} />
             </Field>
-            <Field label="Ville">
-              <Input value={f.ville} onChange={e => setForm(prev => prev && ({ ...prev, ville: e.target.value }))} />
+            <Field label="Langue maternelle">
+              <Input value={String(form.Langue_Maternelle ?? "")} onChange={e => setForm(f => ({ ...f, Langue_Maternelle: e.target.value }))} />
             </Field>
           </FormRow>
-          <Field label="Groupe">
-            <Select value={f.groupe} onChange={e => setForm(prev => prev && ({ ...prev, groupe: e.target.value as Groupe }))}>
-              <option value="">— Choisir —</option>
-              <option value="Alpha">Alpha</option>
-              <option value="Pré-A1">Pré-A1</option>
-              <option value="A1">A1</option>
-              <option value="A2">A2</option>
-            </Select>
-          </Field>
-          <Field label="Inscriptions">
-            <Select value={f.inscriptions} onChange={e => setForm(prev => prev && ({ ...prev, inscriptions: e.target.value as Inscription }))}>
-              <option value="">— Choisir —</option>
-              <option value="Payé">Payé</option>
-              <option value="À payer">À payer</option>
-              <option value="Exonéré">Exonéré</option>
-            </Select>
+          <Field label="Date de naissance">
+            <Input placeholder="JJ/MM/AAAA" value={String(form.Date_Naissance ?? "")} onChange={e => setForm(f => ({ ...f, Date_Naissance: e.target.value }))} />
           </Field>
           <FormRow>
-            <Field label="Date de naissance">
-              <Input
-                placeholder="JJ/MM/AAAA"
-                value={f.dateNaissance ?? ""}
-                onChange={e => {
-                  const date = e.target.value
-                  const age = calculerAge(date)
-                  setForm(prev => prev && ({ ...prev, dateNaissance: date, ...(age !== null ? { age } : {}) }))
-                }}
-              />
-            </Field>
-            <Field label="Âge (auto)">
-              <Input
-                type="number" min={0} max={120}
-                value={f.age ?? ""}
-                onChange={e => setForm(prev => prev && ({ ...prev, age: e.target.value === "" ? null : Number(e.target.value) }))}
-              />
-            </Field>
-          </FormRow>
-          <FormRow>
-            <Field label="Test 1 /20">
-              <Input
-                type="number" min={0} max={20}
-                value={f.test1 ?? ""}
-                onChange={e => setForm(prev => prev && ({ ...prev, test1: e.target.value === "" ? null : Number(e.target.value) }))}
-              />
-            </Field>
-            <Field label="Test 2 /20">
-              <Input
-                type="number" min={0} max={20}
-                value={f.test2 ?? ""}
-                onChange={e => setForm(prev => prev && ({ ...prev, test2: e.target.value === "" ? null : Number(e.target.value) }))}
-              />
-            </Field>
-          </FormRow>
-          {!isParent && (
-            <Field label="Autorisation parentale">
-              <Select
-                value={(f as BeneficiaireEnfant).autorisationParentale ?? ""}
-                onChange={e => setForm(prev => prev && ({ ...prev, autorisationParentale: e.target.value as "OUI" | "NON" | "" }))}
-              >
-                <option value="">— Choisir —</option>
-                <option value="OUI">OUI</option>
-                <option value="NON">NON</option>
+            <Field label="Niveau">
+              <Select value={String(form.Niveau ?? "")} onChange={e => setForm(f => ({ ...f, Niveau: e.target.value }))}>
+                <option value="">—</option>
+                <option value="Alpha">Alpha</option>
+                <option value="A1-">A1-</option>
+                <option value="A1+">A1+</option>
+                <option value="A2-">A2-</option>
+                <option value="A2+/B1">A2+/B1</option>
               </Select>
             </Field>
-          )}
+            <Field label="Statut">
+              <Select value={String(form.Statut_Inscription ?? "")} onChange={e => setForm(f => ({ ...f, Statut_Inscription: e.target.value }))}>
+                <option value="">—</option>
+                <option value="EN COURS">EN COURS</option>
+                <option value="SUSPENDU">SUSPENDU</option>
+                <option value="ARRÊTÉ">ARRÊTÉ</option>
+              </Select>
+            </Field>
+          </FormRow>
           <SaveButton />
           <DeleteButton onClick={handleDelete} />
         </form>
