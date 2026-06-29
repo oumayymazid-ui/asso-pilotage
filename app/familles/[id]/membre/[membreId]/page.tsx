@@ -5,10 +5,11 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
-import { ChevronRight, Phone, Mail, Globe } from "lucide-react"
+import { ChevronRight, Phone, Mail, Globe, Plus, Pencil } from "lucide-react"
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
-  calculerAge, type FamilleSheet, type MembreSheet, type PaiementSheet
+  addPaiement, updatePaiement, deletePaiement,
+  calculerAge, type FamilleSheet, type MembreSheet, type PaiementSheet, type InscriptionSheet
 } from "@/lib/sheets-api"
 
 const niveauStyle: Record<string, string> = {
@@ -43,9 +44,13 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [famille, setFamille]   = useState<FamilleSheet | null>(null)
   const [membre, setMembre]     = useState<MembreSheet | null>(null)
   const [paiements, setPaiements] = useState<PaiementSheet[]>([])
+  const [inscriptions, setInscriptions] = useState<InscriptionSheet[]>([])
   const [loading, setLoading]   = useState(true)
   const [slideOpen, setSlideOpen] = useState(false)
   const [form, setForm]         = useState<Partial<MembreSheet>>({})
+  const [payOpen, setPayOpen]   = useState(false)
+  const [payEditing, setPayEditing] = useState(false)
+  const [payForm, setPayForm]   = useState<Partial<PaiementSheet>>({})
 
   const loadData = useCallback(async () => {
     try {
@@ -58,6 +63,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       setMembre(m)
       setForm(m)
       setPaiements(p)
+      setInscriptions(m.inscriptions ?? [])
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }, [id, membreId])
@@ -86,6 +92,34 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   async function handleSaveNotes(json: string) {
     await updateMembre(membreId, { Notes: json })
     await loadData()
+  }
+
+  function openNewPaiement() {
+    setPayEditing(false)
+    setPayForm({ ID_Inscription: inscriptions[0]?.ID_Inscription ?? "", Date_Paiement: "", Montant: "", Mode_Paiement: "" })
+    setPayOpen(true)
+  }
+
+  function openEditPaiement(p: PaiementSheet) {
+    setPayEditing(true)
+    setPayForm({ ...p })
+    setPayOpen(true)
+  }
+
+  async function handleSavePaiement() {
+    if (payEditing && payForm.ID_Paiement) {
+      await updatePaiement(payForm.ID_Paiement, payForm)
+    } else {
+      await addPaiement(payForm)
+    }
+    await loadData()
+    setPayOpen(false)
+  }
+
+  async function handleDeletePaiement() {
+    if (payForm.ID_Paiement) await deletePaiement(payForm.ID_Paiement)
+    await loadData()
+    setPayOpen(false)
   }
 
   async function handleDelete() {
@@ -186,12 +220,25 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       <JournalSuivi notes={membre.Notes} onSave={handleSaveNotes} />
 
       {/* Paiements */}
-      {paiements.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-5 mb-6">
-          <h2 className="text-sm font-semibold text-foreground mb-4">
+      <div className="bg-surface border border-border rounded-xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <h2 className="text-sm font-semibold text-foreground">
             Paiements
-            <span className="ml-2 text-xs font-normal text-muted">({paiements.length})</span>
+            {paiements.length > 0 && <span className="ml-2 text-xs font-normal text-muted">({paiements.length})</span>}
           </h2>
+          {inscriptions.length > 0 && (
+            <button onClick={openNewPaiement}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-familles text-white text-xs font-medium hover:bg-familles-dark transition-colors">
+              <Plus size={13} />Paiement
+            </button>
+          )}
+        </div>
+
+        {paiements.length === 0 ? (
+          <p className="text-sm text-muted italic">
+            {inscriptions.length > 0 ? "Aucun paiement. Cliquez sur « Paiement » pour en ajouter un." : "Aucune inscription : impossible d'ajouter un paiement."}
+          </p>
+        ) : (
           <div className="space-y-2">
             {paiements.map(p => (
               <div key={p.ID_Paiement} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-3">
@@ -205,17 +252,65 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
                     </span>
                   )}
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-medium text-foreground">{p.Date_Paiement || "—"}</p>
-                  {p.Date_Virement && (
-                    <p className="text-xs text-muted">Virement {p.Date_Virement}</p>
-                  )}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-foreground">{p.Date_Paiement || "—"}</p>
+                    {p.Date_Virement && (
+                      <p className="text-xs text-muted">Virement {p.Date_Virement}</p>
+                    )}
+                  </div>
+                  <button onClick={() => openEditPaiement(p)} aria-label="Modifier ce paiement" title="Modifier"
+                    className="p-1.5 rounded-lg text-muted hover:text-familles-dark hover:bg-familles-light transition-colors">
+                    <Pencil size={14} />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* SlideOver paiement */}
+      <SlideOver open={payOpen} onClose={() => setPayOpen(false)} title={payEditing ? "Modifier le paiement" : "Ajouter un paiement"} width="md">
+        <form onSubmit={e => { e.preventDefault(); handleSavePaiement() }} className="flex flex-col gap-4">
+          {!payEditing && inscriptions.length > 1 && (
+            <Field label="Année scolaire (inscription)" required>
+              <Select value={String(payForm.ID_Inscription ?? "")} onChange={e => setPayForm(f => ({ ...f, ID_Inscription: e.target.value }))}>
+                {inscriptions.map(i => (
+                  <option key={i.ID_Inscription} value={i.ID_Inscription}>{i.Annee_Scolaire || `Inscription ${i.ID_Inscription}`}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <FormRow>
+            <Field label="Montant (€)" required>
+              <Input type="number" value={String(payForm.Montant ?? "")} onChange={e => setPayForm(f => ({ ...f, Montant: e.target.value }))} />
+            </Field>
+            <Field label="Date de paiement">
+              <Input placeholder="JJ/MM/AAAA" value={String(payForm.Date_Paiement ?? "")} onChange={e => setPayForm(f => ({ ...f, Date_Paiement: e.target.value }))} />
+            </Field>
+          </FormRow>
+          <Field label="Mode de paiement">
+            <Select value={String(payForm.Mode_Paiement ?? "")} onChange={e => setPayForm(f => ({ ...f, Mode_Paiement: e.target.value }))}>
+              <option value="">—</option>
+              <option value="Especes">Espèces</option>
+              <option value="Cheque">Chèque</option>
+              <option value="Virement">Virement</option>
+              <option value="CB">Carte bancaire</option>
+            </Select>
+          </Field>
+          <FormRow>
+            <Field label="Date dépôt banque">
+              <Input placeholder="JJ/MM/AAAA" value={String(payForm.Date_Depot_Banque ?? "")} onChange={e => setPayForm(f => ({ ...f, Date_Depot_Banque: e.target.value }))} />
+            </Field>
+            <Field label="Date virement">
+              <Input placeholder="JJ/MM/AAAA" value={String(payForm.Date_Virement ?? "")} onChange={e => setPayForm(f => ({ ...f, Date_Virement: e.target.value }))} />
+            </Field>
+          </FormRow>
+          <SaveButton />
+          {payEditing && <DeleteButton onClick={handleDeletePaiement} />}
+        </form>
+      </SlideOver>
 
       {/* SlideOver modification */}
       <SlideOver

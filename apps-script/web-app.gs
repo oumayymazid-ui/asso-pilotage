@@ -33,6 +33,9 @@ function doPost(e) {
     else if (a === "updateMembre") result = updateMembre(ss, body.idMembre, body.data);
     else if (a === "deleteMembre") result = deleteMembre(ss, body.idMembre);
     else if (a === "ensureCommentaireColumn") result = ensureCommentaireColumn(ss);
+    else if (a === "addPaiement") result = addPaiement(ss, body.data);
+    else if (a === "updatePaiement") result = updatePaiement(ss, body.idPaiement, body.data);
+    else if (a === "deletePaiement") result = deletePaiement(ss, body.idPaiement);
     else result = { error: "Action inconnue : " + a };
     return jsonResponse(result);
   } catch (err) {
@@ -110,6 +113,7 @@ function getPaiements(ss, idMembre) {
     .map(function(pay) {
       return {
         ID_Paiement: String(pay["ID"]), ID_Membre: String(idMembre),
+        ID_Inscription: String(pay["Inscription ID"]),
         Date_Paiement: fmtDate(pay["Date de paiement"]), Montant: pay["Montant"],
         Mode_Paiement: pay["Mode de paiement"],
         Date_Depot_Banque: fmtDate(pay["Date de depot banque"]),
@@ -255,6 +259,40 @@ function mapInscription(i) {
     Orientation: i["Orientation"], Date_Inscription: fmtDate(i["Date d'inscription"]),
     Beneficiaire: i["Beneficiaire"], Montant_Adhesion: i["Montant adhesion"], Remarques: i["Remarques"]
   };
+}
+
+// ── PAIEMENTS (écriture) ──────────────────────────────────
+
+function addPaiement(ss, data) {
+  var sh = ss.getSheetByName("PAIEMENT");
+  var id = nextId(sh);
+  appendByHeader(sh, {
+    "ID": id,
+    "Inscription ID": data.ID_Inscription || "",
+    "Date de paiement": parseDateFr(data.Date_Paiement),
+    "Montant": data.Montant || "",
+    "Mode de paiement": data.Mode_Paiement || "",
+    "Date de depot banque": parseDateFr(data.Date_Depot_Banque),
+    "Date de virement": parseDateFr(data.Date_Virement)
+  });
+  return { ok: true, ID_Paiement: String(id) };
+}
+
+function updatePaiement(ss, idPaiement, data) {
+  var sh = ss.getSheetByName("PAIEMENT");
+  var map = {};
+  if (data.Date_Paiement !== undefined) map["Date de paiement"] = parseDateFr(data.Date_Paiement);
+  if (data.Montant !== undefined) map["Montant"] = data.Montant;
+  if (data.Mode_Paiement !== undefined) map["Mode de paiement"] = data.Mode_Paiement;
+  if (data.Date_Depot_Banque !== undefined) map["Date de depot banque"] = parseDateFr(data.Date_Depot_Banque);
+  if (data.Date_Virement !== undefined) map["Date de virement"] = parseDateFr(data.Date_Virement);
+  var ok = updateRowByHeader(sh, idPaiement, map);
+  return ok ? { ok: true } : { error: "Paiement introuvable" };
+}
+
+function deletePaiement(ss, idPaiement) {
+  var n = deleteRowsWhere(ss.getSheetByName("PAIEMENT"), "ID", [String(idPaiement)]);
+  return n > 0 ? { ok: true } : { error: "Paiement introuvable" };
 }
 
 function ensureCommentaireColumn(ss) {

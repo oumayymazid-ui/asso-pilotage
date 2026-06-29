@@ -66,6 +66,7 @@ export interface InscriptionSheet {
 export interface PaiementSheet {
   ID_Paiement: string
   ID_Membre: string
+  ID_Inscription?: string
   Date_Paiement: string
   Montant: string | number
   Mode_Paiement: string
@@ -166,6 +167,20 @@ export async function updateMembre(idMembre: string, data: Partial<MembreSheet>)
 
 export async function deleteMembre(idMembre: string): Promise<{ ok: boolean }> {
   return apiPost({ action: "deleteMembre", idMembre }) as Promise<{ ok: boolean }>
+}
+
+// ── Paiements (écriture) ────────────────────────
+
+export async function addPaiement(data: Partial<PaiementSheet>): Promise<{ ok: boolean, ID_Paiement: string }> {
+  return apiPost({ action: "addPaiement", data }) as Promise<{ ok: boolean, ID_Paiement: string }>
+}
+
+export async function updatePaiement(idPaiement: string, data: Partial<PaiementSheet>): Promise<{ ok: boolean }> {
+  return apiPost({ action: "updatePaiement", idPaiement, data }) as Promise<{ ok: boolean }>
+}
+
+export async function deletePaiement(idPaiement: string): Promise<{ ok: boolean }> {
+  return apiPost({ action: "deletePaiement", idPaiement }) as Promise<{ ok: boolean }>
 }
 
 // ── Indicateur de configuration ────────────────
