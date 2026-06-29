@@ -299,14 +299,6 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
               <option value="CB">Carte bancaire</option>
             </Select>
           </Field>
-          <FormRow>
-            <Field label="Date dépôt banque">
-              <Input placeholder="JJ/MM/AAAA" value={String(payForm.Date_Depot_Banque ?? "")} onChange={e => setPayForm(f => ({ ...f, Date_Depot_Banque: e.target.value }))} />
-            </Field>
-            <Field label="Date virement">
-              <Input placeholder="JJ/MM/AAAA" value={String(payForm.Date_Virement ?? "")} onChange={e => setPayForm(f => ({ ...f, Date_Virement: e.target.value }))} />
-            </Field>
-          </FormRow>
           <SaveButton />
           {payEditing && <DeleteButton onClick={handleDeletePaiement} />}
         </form>
