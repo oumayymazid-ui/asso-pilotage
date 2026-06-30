@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
-import { ChevronRight, Phone, Mail, Globe, Plus, Pencil } from "lucide-react"
+import { ChevronRight, Phone, Mail, Globe, Plus, Pencil, Upload } from "lucide-react"
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
   addPaiement, updatePaiement, deletePaiement, updateInscription,
@@ -53,6 +53,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [payForm, setPayForm]   = useState<Partial<PaiementSheet>>({})
   const [editAttenduId, setEditAttenduId] = useState<string | null>(null)
   const [attenduDraft, setAttenduDraft] = useState("")
+  const [docFichier, setDocFichier] = useState<File | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -171,13 +172,23 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
             )}
           </div>
           <h1 className="text-2xl font-bold text-foreground">{membre.Prenom} {membre.Nom}</h1>
+          {docFichier && (
+            <p className="text-xs text-muted mt-1">Document sélectionné : {docFichier.name}</p>
+          )}
         </div>
-        <button
-          onClick={() => { setForm({ ...membre }); setSlideOpen(true) }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-familles-light text-familles-dark text-sm font-medium hover:bg-familles hover:text-white transition-colors shrink-0"
-        >
-          Modifier
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-familles text-white text-sm font-medium hover:bg-familles-dark transition-colors cursor-pointer">
+            <Upload size={15} />
+            Ajouter un document
+            <input type="file" className="hidden" onChange={e => setDocFichier(e.target.files?.[0] ?? null)} />
+          </label>
+          <button
+            onClick={() => { setForm({ ...membre }); setSlideOpen(true) }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-familles-light text-familles-dark text-sm font-medium hover:bg-familles hover:text-white transition-colors"
+          >
+            Modifier
+          </button>
+        </div>
       </div>
 
       {/* Carte infos */}
