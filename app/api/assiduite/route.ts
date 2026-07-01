@@ -16,9 +16,11 @@ export async function GET() {
     const data = await fetchAssiduiteData()
     return NextResponse.json(data)
   } catch (err) {
+    // Détail loggé côté serveur uniquement ; le client reçoit un message
+    // générique pour ne pas divulguer la structure interne / les erreurs API.
     console.error("[/api/assiduite]", err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Erreur inconnue" },
+      { error: "Impossible de charger les données pour le moment." },
       { status: 500 },
     )
   }
