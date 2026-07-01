@@ -6,7 +6,7 @@
 // ⚠️ Pour l'instant : refresh de session UNIQUEMENT, aucune redirection /
 //    blocage — tant que le login n'est pas branché sur Supabase, on ne
 //    veut verrouiller personne. L'enforcement (redirect vers /login,
-//    401 sur /api) sera activé à l'étape suivante (voir ADR 004).
+//    401 sur /api) sera activé à l'étape suivante (voir ADR 007).
 // ──────────────────────────────────────────────────────────────
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"

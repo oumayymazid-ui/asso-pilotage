@@ -1,7 +1,8 @@
 # Asso Pilotage
 
 Dashboard de pilotage pour une association de formation numérique (Ada Tech School).
-**Next.js 16.2.6 · React 19 · Tailwind v4 · TypeScript · localStorage** *(module Familles : Google Sheets API REST v4)*
+**Next.js 16.2.6 · React 19 · Tailwind v4 · TypeScript**
+Auth **Supabase** · données **Google Sheets** (Familles, Assiduité) + `localStorage` (autres modules) · IA **Anthropic** (posts) & **Gemini** (OCR bulletins)
 
 🌐 **Production** : [asso-inky.vercel.app](https://asso-inky.vercel.app)
 📦 **Repo** : [github.com/anais0210/asso-pilotage](https://github.com/anais0210/asso-pilotage)
@@ -12,10 +13,12 @@ Dashboard de pilotage pour une association de formation numérique (Ada Tech Sch
 
 ```bash
 npm install
+cp .env.example .env.local   # puis renseigner Supabase / Google / IA
 npm run dev -- --port 3001   # http://localhost:3001
 ```
 
-Compte démo : `admin@asso.fr` / `admin1234`
+L'app nécessite un projet Supabase configuré (voir [`LIVRAISON.md`](LIVRAISON.md) §5 et [ADR 007](docs/explanation/adr/007-auth-supabase.md)).
+**Il n'y a plus de compte démo en dur** : l'admin (`admin@asso.fr`) est créé via `scripts/create-admin.mjs` (mot de passe choisi à la création).
 
 ---
 
@@ -35,6 +38,7 @@ Pour accomplir une tâche précise, quand on sait ce qu'on veut faire.
 - [Ajouter le CRUD à un module](docs/how-to/add-crud-to-module.md)
 - [Déployer sur Vercel](docs/how-to/deploy.md)
 - [Migrer le projet vers l'association](docs/how-to/migration-association.md)
+- [Livraison à l'association](LIVRAISON.md)
 
 ### 📖 Reference — Référence technique
 Pour savoir comment quelque chose fonctionne.
@@ -49,8 +53,11 @@ Pour comprendre pourquoi les choses sont faites ainsi.
 
 - [ADR 001 — Pas de backend (localStorage first)](docs/explanation/adr/001-no-backend.md)
 - [ADR 002 — Tailwind v4 CSS-first](docs/explanation/adr/002-tailwind-v4-css-first.md)
-- [ADR 003 — Auth localStorage](docs/explanation/adr/003-auth-localstorage.md)
-- [ADR 004 — Intégration Google Sheets (module Familles, API REST v4)](docs/explanation/adr/004-google-sheets-integration.md)
+- [ADR 003 — Auth localStorage](docs/explanation/adr/003-auth-localstorage.md) *(remplacé par ADR 007)*
+- [ADR 004 — Intégration Google Sheets (Familles/Assiduité, API REST v4)](docs/explanation/adr/004-google-sheets-integration.md)
+- [ADR 005 — Accessibilité](docs/explanation/adr/005-accessibilite.md)
+- [ADR 006 — OCR des bulletins (Gemini)](docs/explanation/adr/006-ocr-gemini.md)
+- [ADR 007 — Authentification réelle via Supabase](docs/explanation/adr/007-auth-supabase.md)
 
 ---
 
@@ -59,18 +66,17 @@ Pour comprendre pourquoi les choses sont faites ainsi.
 | Module | URL | Description |
 |---|---|---|
 | Vue d'ensemble | `/dashboard` | KPIs globaux, alertes |
+| Familles | `/familles` | Familles & membres — **Google Sheets** (paiements, documents Drive, suivi, **OCR bulletins**) |
+| Assiduité | `/assiduite` | Hub assiduité — **Google Sheets** (présences, alertes décrochage, recherche élève) |
 | Émargement | `/emargement` | Présences par séance |
-| Absences | `/absences` | Suivi + appels parents |
-| Assiduité | `/assiduite` | Hub assiduité global par atelier |
-| Bénéficiaires | `/beneficiaires` | Hub Élèves / Parents unifié (CRUD + droits image) |
-| Familles | `/familles` | Familles & membres — **Google Sheets** (paiements, documents Drive, suivi) |
-| Finances | `/finances` | Demandes + inscriptions |
-| Ateliers | `/ateliers` | Planning, notes, groupes |
-| Communication | `/communication` | Calendrier éditorial + kanban IA (Claude) |
-| Bénévoles | `/benevoles` | Disponibilités + événements |
+| Finances | `/finances` | Demandes de financement + inscriptions |
+| Ateliers | `/ateliers` | Planning, notes apprenantes, composition de groupes |
+| Communication | `/communication` | Calendrier éditorial + kanban (Brouillon → À valider → Validé → Publié) + génération IA (Claude) |
 | Membres | `/membres` | Annuaire équipe |
 | Roadmap | `/roadmap` | Matrice impact/facilité |
-| Mon compte | `/compte` | Profil + changement de mot de passe |
+| Mon compte | `/compte` | Profil + mot de passe (+ **gestion des comptes** pour les admins) |
+
+> **Auth & routes API** : toutes les routes `/api/*` (`sheets`, `assiduite`, `ocr`, `generate-post`, `admin/users`) sont protégées par la session Supabase (401 si non authentifié).
 
 ---
 

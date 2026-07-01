@@ -1,8 +1,8 @@
-# ADR 004 — Authentification réelle via Supabase
+# ADR 007 — Authentification réelle via Supabase
 
-- **Statut** : Accepté (en cours d'implémentation)
+- **Statut** : Accepté (implémenté)
 - **Date** : 2026-07-01
-- **Remplace / complète** : le système d'auth localStorage (`lib/auth.ts`)
+- **Remplace** : ADR 003 (auth localStorage) — voir `003-auth-localstorage.md`
 
 ## Contexte
 

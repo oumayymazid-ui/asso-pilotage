@@ -2,7 +2,7 @@
 
 > **À mettre à jour** à chaque nouvelle fonctionnalité, intégration ou changement de configuration avant livraison à l'association.
 >
-> Dernière mise à jour : 2026-05-20
+> Dernière mise à jour : 2026-07-01
 
 ---
 
@@ -24,8 +24,9 @@
 **Asso Pilotage** est un tableau de bord de gestion interne pour une association de formation numérique.
 
 Il centralise :
-- Le suivi des bénéficiaires (enfants + contact parent)
-- L'organisation et l'émargement des ateliers
+- Le suivi des **familles bénéficiaires** (familles, parents, enfants)
+- L'**assiduité** et l'émargement des ateliers
+- L'organisation des ateliers et la composition des groupes
 - Le suivi des financements
 - La communication sur les réseaux sociaux
 - La gestion des membres de l'équipe
@@ -37,12 +38,18 @@ Il centralise :
 |---|---|
 | Framework | Next.js 16 (App Router) |
 | UI | Tailwind CSS v4, lucide-react |
-| Persistance | `localStorage` navigateur (pas de base de données) |
+| Authentification | **Supabase Auth** (comptes réels, sessions serveur) |
+| Persistance données | **Hybride** : Google Sheets (Familles, Assiduité) + `localStorage` (autres modules) |
+| Documents | Google Drive (pièces jointes des fiches membres) |
+| IA | Anthropic (génération de posts) · Google Gemini (OCR bulletins) |
 | Hébergement | Vercel (déploiement automatique) |
 | Dépôt | github.com/anais0210/asso-pilotage |
 | URL production | asso-inky.vercel.app |
 
-> **Important** : toutes les données sont stockées dans le navigateur (`localStorage`). Chaque utilisateur·rice a ses propres données locales. Il n'y a pas de synchronisation entre les postes à ce stade (voir phase 2 en section 7).
+> **Important — où vivent les données :**
+> - **Authentification** : Supabase (comptes partagés, vérifiés côté serveur).
+> - **Familles & Assiduité** : Google Sheets `BDD_Asso_CRM` (données **partagées** entre tous les postes).
+> - **Autres modules** (dashboard, émargement, ateliers, finances, communication, membres, roadmap) : `localStorage` du navigateur → **propres à chaque poste**, pas encore synchronisés (voir section 7).
 
 ---
 
@@ -53,11 +60,23 @@ Il centralise :
 - Accès rapide à tous les modules depuis la page d'accueil
 - Compteur d'alertes actives (deadline, salles non confirmées, posts à créer, candidatures en attente)
 
+### Familles / Bénéficiaires (`/familles`) — **Google Sheets**
+- Listing avec onglets (Familles / Membres), recherche par préfixe tolérante aux accents, tri alphabétique
+- **Fiche famille** : infos (adresse, quartier QVP, composition, contact principal cliquable), **autocomplétion d'adresse** (Base Adresse Nationale), cartes membres, journal de suivi
+- **Fiche membre** : état civil, **âge calculé automatiquement**, inscriptions (niveau/statut), **paiements** + reste à payer, **documents** (upload Google Drive), journal de suivi (commentaires / appels / emails)
+- **Sélecteur de date natif** pour les dates (naissance, inscription, paiement)
+- **OCR de bulletins d'inscription (PDF)** : à l'ajout d'un membre, l'upload d'un bulletin PDF **pré-remplit automatiquement** nom, prénom, date de naissance, téléphones, montant (via Google Gemini)
+
+### Assiduité (`/assiduite`) — **Google Sheets**
+- Hub connecté en direct au Google Sheet (séances, personnes, présences)
+- KPIs de présence globaux + stats par groupe de niveau
+- **Alerte décrochage** automatique dès **3 absences** (et « à surveiller » à 2)
+- Détail par élève avec tri et **recherche par nom**
+
 ### Émargement (`/emargement`)
 - Sélection de la séance du jour
-- Liste de présence des bénéficiaires avec statuts : présent / absent / retard
+- Liste de présence avec statuts : présent / absent / retard
 - Signalement automatique si un bénéficiaire cumule 3 absences ou plus
-- Contact parent affiché directement (téléphone cliquable) pour les absents
 - Persistance de la présence par séance (`localStorage`)
 
 ### Finances (`/finances`)
@@ -69,62 +88,46 @@ Il centralise :
 
 ### Ateliers (`/ateliers`)
 - **Ateliers** : création et suivi des séances (date, heure, salle, formatrice, bénévole affecté·e, bénéficiaires inscrits)
-  - Bouton "Émarger" pour aller directement à la feuille de présence
-- **Groupes** : composition de groupes par niveau, âge ou mixte
-  - Gestion des membres par groupe
-  - Badges niveau (débutant / intermédiaire / avancé) et tranche d'âge
-  - Import rapide d'un groupe dans une séance
-
-### Bénéficiaires (`/beneficiaires`)
-- Liste complète avec recherche (prénom, nom, parent)
-- Filtres : statut (actif / diplômé / abandon) et niveau
-- Fiche complète : identité enfant, contact parent, note d'évaluation, niveau auto-calculé
-- Statistiques : nombre d'ateliers suivis, absences, groupes
-- CRUD complet via formulaire latéral
-- Note d'évaluation (0–20) → dérive automatiquement le niveau :
-  - ≤ 10 : débutant
-  - 11–16 : intermédiaire
-  - ≥ 17 : avancé
+  - Bouton « Émarger » pour aller directement à la feuille de présence
+- **Groupes** : composition de groupes par niveau, âge ou mixte, import rapide dans une séance
 
 ### Communication (`/communication`)
-- **Calendrier éditorial** : vue mensuelle des posts planifiés avec leurs statuts
-- **Kanban de validation** : circuit Brouillon → En attente de validation → Validé → Publié
-- **Événements** : création et gestion des événements de l'association, liables aux posts
-- **Intégrations réseaux sociaux** : connexion Zapier / Make via webhook (voir section 6)
-- CRUD posts et événements
-- Chaque post contient : catégorie (atelier / autre), titre, brief (contexte IA), contenu principal, médias (images/vidéos), plateformes cibles avec personnalisation par plateforme (contenu spécifique, tags, lien), date programmée, état, auteur, événement lié
-- Posts **atelier** : liste de participants structurée (apprenantes, bénévoles, enseignant·es), importable depuis une session du module Ateliers, + liste automatique des personnes à flouter (basée sur le droit à l'image — champ `droitsImage` à configurer dans les fiches bénéficiaires)
-- Clic sur une carte Kanban → édition directe (sans étape intermédiaire)
-- **Génération IA** : bouton ✨ "Générer avec l'IA" dans le formulaire — génère le contenu principal + une variante par plateforme + des hashtags via Claude (Anthropic). Pour les posts "atelier" : contexte automatique depuis la session. Pour les posts "autre" : basé sur un brief libre saisi par l'utilisateur.
+- **Calendrier éditorial** : vue mensuelle des posts planifiés, fond coloré par statut
+- **Suivi (Kanban)** : circuit **Brouillon → À valider → Validé → Publié**
+  - Clic sur une carte → édition directe
+  - Point rouge sur les posts repassés en brouillon depuis « à valider »
+  - Colonne « Publié » limitée aux 3 plus récents + archive complète (`/communication/publies`)
+- **Intégrations réseaux sociaux** : webhook Zapier / Make (voir section 6)
+- Chaque post : catégorie (atelier / autre), titre, brief, contenu, médias, plateformes cibles avec personnalisation, date programmée, statut, auteur
+- Posts **atelier** : participants (apprenantes, bénévoles, formatrices) importables depuis une session Ateliers + liste automatique des personnes à flouter (droit à l'image)
+- **Génération IA** (bouton ✨) : contenu principal + variante et hashtags par plateforme via Claude (Anthropic)
 
 ### Membres (`/membres`)
 - Annuaire de l'équipe (salariées, bénévoles, coordinatrices)
-- Rôles : admin / formatrice / coordinatrice / bénévole
-- Statuts : active / inactive / en attente
-- Gestion des candidatures (validation / refus)
-- CRUD complet
+- Rôles, statuts, gestion des candidatures, CRUD complet
 
 ### Roadmap stratégique (`/roadmap`)
-- Matrice impact / facilité des projets
-- Vue par thème (6 thèmes, 16 use cases, 43 sous-actions)
+- Matrice impact / facilité, vue par thème (6 thèmes, 16 use cases, 43 sous-actions)
 - Suivi d'avancement par sous-action (à faire / en cours / fait)
 
 ### Gestion de compte (`/compte`)
-- Modification du profil (prénom, nom, email, mot de passe)
-- Suppression de son propre compte
+- Modification de son profil (prénom, nom, email) et de son mot de passe
 - **Admin uniquement** : création, modification et suppression de comptes membres
 
 ---
 
 ## 3. Accès et comptes
 
-### Compte administrateur par défaut
+> L'authentification passe désormais par **Supabase** (comptes réels, sessions vérifiées côté serveur).
+> **Il n'y a pas d'inscription publique** : les comptes sont créés par une administratrice.
+
+### Compte administrateur
 
 | Champ | Valeur |
 |---|---|
 | Email | `admin@asso.fr` |
-| Mot de passe | `admin1234` |
-| Rôle | Administratrice |
+| Mot de passe | *défini à la création du compte* (voir section 5) |
+| Rôle | Super administratrice (`super_admin`) |
 
 > ⚠️ **Changer le mot de passe admin** dès la première connexion en production (page `/compte`).
 
@@ -132,7 +135,7 @@ Il centralise :
 
 | Rôle | Accès |
 |---|---|
-| `admin` | Accès complet + gestion des comptes membres |
+| `super_admin` / `admin` | Accès complet + **gestion des comptes** membres |
 | `formatrice` | Tous les modules sauf gestion des comptes |
 | `coordinatrice` | Tous les modules sauf gestion des comptes |
 | `benevole` | Lecture seule sur la plupart des modules |
@@ -144,6 +147,8 @@ Il centralise :
 3. Cliquer **Nouveau compte**
 4. Remplir prénom, nom, email, mot de passe, rôle
 5. Transmettre les identifiants à la personne concernée
+
+> Les comptes sont stockés dans Supabase (partagés entre tous les postes) — contrairement aux anciens comptes `localStorage`.
 
 ---
 
@@ -159,25 +164,23 @@ Tout push sur la branche `main` déclenche un déploiement automatique sur Verce
 
 ### Variables d'environnement (à configurer sur Vercel)
 
-Aller dans **Vercel → Project Settings → Environment Variables** :
+**Vercel → Project Settings → Environment Variables** (Production + Preview) :
 
-| Variable | Obligatoire | Description |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | Oui (pour la génération IA) | Clé API Anthropic — obtenir sur [console.anthropic.com](https://console.anthropic.com/) |
+| Variable | Obligatoire | Secret | Description |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Oui (auth) | non | URL du projet Supabase |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Oui (auth) | non | Clé publishable Supabase (`sb_publishable_…`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Oui (gestion comptes) | **OUI** | Clé service_role Supabase — **jamais** en `NEXT_PUBLIC_` |
+| `GOOGLE_CLIENT_EMAIL` | Oui (Familles/Assiduité) | non | Compte de service Google (Sheets + Drive) |
+| `GOOGLE_PRIVATE_KEY` | Oui (Familles/Assiduité) | **OUI** | Clé privée du compte de service |
+| `ANTHROPIC_API_KEY` | Oui (génération IA posts) | **OUI** | Clé Anthropic — [console.anthropic.com](https://console.anthropic.com/) |
+| `GEMINI_API_KEY` | Oui (OCR bulletins) | **OUI** | Clé Google Gemini — sinon `/api/ocr` renvoie 500 |
+| `GOOGLE_SHEET_ID` | Non | non | Requis uniquement par les scripts de seed (l'app utilise l'ID en dur) |
 
-> **En local** : créer un fichier `.env.local` à la racine du projet :
-> ```
-> ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxx
-> ```
-> Ce fichier est ignoré par git (`.env*` dans `.gitignore`).
-
-> **Phase 2** : quand l'intégration Google Apps Script sera activée, ajouter :
-> ```
-> NEXT_PUBLIC_SHEETS_SCRIPT_URL=https://script.google.com/macros/s/xxx/exec
-> ```
+> **En local** : créer un `.env.local` à la racine (voir `.env.example`). Ce fichier est ignoré par git (`.env*`, sauf `!.env.example`).
+> Les anciennes variables `NEXT_PUBLIC_SHEETS_SCRIPT_URL` / `NEXT_PUBLIC_SHEETS_API_URL` sont **obsolètes**.
 
 ### Déployer manuellement
-
 ```bash
 git push origin main
 # Vercel détecte le push et redéploie automatiquement (~1 min)
@@ -187,26 +190,34 @@ git push origin main
 
 ## 5. Configuration après livraison
 
-### Étape 1 — Première connexion
+### Étape 1 — Configurer Supabase (auth)
+1. Créer un projet Supabase (gratuit) et récupérer `Project URL` + `publishable key` (Settings → API).
+2. Renseigner les 3 variables Supabase dans Vercel **et** `.env.local` (voir section 4).
+3. Exécuter la **migration SQL** `supabase/migrations/0001_profiles.sql` dans Supabase → SQL Editor (crée la table `profiles`, le trigger et les RLS).
+4. **Désactiver l'inscription publique** : Supabase → Authentication → *Sign In / Providers* → décocher « Allow new users to sign up ».
+5. **Créer la 1ʳᵉ admin** :
+   ```bash
+   node --env-file=.env.local scripts/create-admin.mjs "MotDePasseChoisi"
+   ```
+   (crée / réinitialise `admin@asso.fr` en `super_admin`).
+
+### Étape 2 — Configurer Google Sheets (Familles + Assiduité)
+- Partager le Sheet `BDD_Asso_CRM` **et** les dossiers Drive des documents avec le `GOOGLE_CLIENT_EMAIL` en rôle **Éditeur**.
+- Renseigner `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY` (Vercel + `.env.local`).
+
+### Étape 3 — Première connexion
 1. Ouvrir `https://asso-inky.vercel.app`
-2. Se connecter avec `admin@asso.fr` / `admin1234`
-3. Aller dans `/compte` → **Changer le mot de passe**
+2. Se connecter avec `admin@asso.fr` + le mot de passe choisi à l'étape 1
+3. `/compte` → **Changer le mot de passe**
 
-### Étape 2 — Créer les comptes de l'équipe
-Voir section 3 — créer un compte par membre de l'équipe (4 personnes).
+### Étape 4 — Créer les comptes de l'équipe
+Voir section 3 (un compte par membre).
 
-### Étape 3 — Saisir les données initiales
-Chaque membre de l'équipe doit saisir les données dans son navigateur :
+### Étape 5 — Saisir les données initiales
+- **Familles / Assiduité** : les données vivent dans Google Sheets (partagées) — pas de ressaisie par poste.
+- **Autres modules** (ateliers, finances, communication, membres, roadmap) : encore en `localStorage` → à saisir sur chaque poste tant que la migration n'est pas généralisée (voir section 7).
 
-- **Bénéficiaires** (`/beneficiaires`) : importer la liste complète
-- **Groupes** (`/ateliers` → Groupes) : créer les groupes existants
-- **Ateliers** (`/ateliers`) : planifier les prochaines séances
-- **Financements** (`/finances`) : saisir les demandes en cours
-- **Membres** (`/membres`) : compléter la liste de l'équipe
-
-> ⚠️ **Rappel** : les données sont stockées localement dans chaque navigateur. Chaque personne a sa propre instance. La synchronisation entre postes est prévue en **phase 2** (Supabase).
-
-### Étape 4 — Configurer l'intégration réseaux sociaux (optionnel)
+### Étape 6 — Configurer l'intégration réseaux sociaux (optionnel)
 Voir section 6.
 
 ---
@@ -218,85 +229,73 @@ Voir section 6.
 Permet de publier automatiquement les posts approuvés sur LinkedIn, Instagram et Facebook.
 
 **Configuration dans l'app** :
-1. Aller dans `/communication` → onglet **Intégrations**
-2. Sélectionner **Zapier / Make**
-3. Créer un compte Zapier (gratuit) ou Make (gratuit jusqu'à 1 000 ops/mois)
-4. Créer un Zap/scénario avec déclencheur **Webhook → Catch Hook**
-5. Copier l'URL du webhook dans l'app
-6. Connecter LinkedIn, Instagram for Business, Facebook Pages dans Zapier/Make
-7. Choisir le déclencheur (post "approuvé" ou "publié")
-8. Activer le toggle
+1. `/communication` → onglet **Intégrations** → **Zapier / Make**
+2. Créer un compte Zapier (gratuit) ou Make (gratuit jusqu'à 1 000 ops/mois)
+3. Créer un Zap/scénario avec déclencheur **Webhook → Catch Hook**
+4. Copier l'URL du webhook dans l'app
+5. Connecter LinkedIn, Instagram for Business, Facebook Pages
+6. Choisir le déclencheur (post « validé » ou « publié ») et activer le toggle
 
-**Liens** :
-- [zapier.com](https://zapier.com)
-- [make.com](https://make.com)
+**Liens** : [zapier.com](https://zapier.com) · [make.com](https://make.com)
 
 ---
 
-### 6.2 Google Sheets (phase 1 — CSV, phase 2 — Apps Script)
+### 6.2 Google Sheets — REST API v4 (implémenté)
 
-L'association gère ses données dans Google Sheets. Trois phases d'intégration sont prévues :
+Les modules **Familles** et **Assiduité** lisent/écrivent directement dans le Google Sheet
+`BDD_Asso_CRM` via l'**API REST v4**, appelée **côté serveur** avec un **compte de service**
+(routes internes `/api/sheets` et `/api/assiduite`). Ce n'est pas Apps Script.
 
-| Phase | Méthode | Statut |
-|---|---|---|
-| Phase 1 | Export / Import CSV manuel | À implémenter |
-| Phase 2 | Google Apps Script (webhook HTTP) | Prévu |
-| Phase 3 | Migration Supabase complète | Long terme |
+- **Tables** : FAMILLE, PERSONNE, INSCRIPTION, PAIEMENT, EVALUATION, DOCUMENTS JOINTS, EVENEMENT, ASSIDUITE, INTERVENANT…
+- **Documents** : uploadés dans **Google Drive** (un dossier par catégorie), référencés dans la table DOCUMENTS JOINTS. Plafond ~4,5 Mo par upload (limite Vercel).
+- **Prérequis** : compte de service en rôle **Éditeur** sur le Sheet et les dossiers Drive (voir section 5).
 
-**Structure attendue des Google Sheets** (mise à jour chantier 2.1 — composition de groupes) :
-
-Sheet **"Bénéficiaires"** :
-- Identité : `id | prenom | nom | dateNaissance | email | telephone | nomParent | telephoneParent | emailParent | dateInscription | niveau | statut | notes`
-- Notes test initial : `init_comprehensionEcrite | init_comprehensionOrale | init_expressionEcrite | init_expressionOrale`
-- Notes test final : `final_comprehensionEcrite | final_comprehensionOrale | final_expressionEcrite | final_expressionOrale`
-
-Sheet **"Ateliers"** :
-- Identité : `id | titre | description | date | heure | duree | salle | formatrice | statut`
-- Public : `ageMin | ageMax | tailleGroupeCible | ratioEncadrement | mixerNiveaux`
-- Compétences ciblées : `comp_comprehensionEcrite | comp_comprehensionOrale | comp_expressionEcrite | comp_expressionOrale`
-- Organisation (JSON) : `taches | besoins | etapes | personnesImpliqueesIds`
-- Participants : `beneficiaireIds | benevoleIds`
-
-Sheet **"Groupes"** :
-`id | nom | atelierId | type | description | beneficiaireIds | etat | dateValidation`
-> `etat` ∈ {`brouillon`, `valide`}
-
-Sheet **"Présences"** :
-`sessionId | beneficiaireId | statut | date`
-
-> Voir `docs/explanation/adr/004-google-sheets-integration.md` (mapping détaillé)
-> et `docs/how-to/composition-groupes.md` (guide d'utilisation).
+> Détails : `CLAUDE.md` (section « Backend Familles ») et `lib/google-sheets-server.ts`.
 
 ---
 
-### 6.3 Supabase (phase 2 — base de données partagée)
+### 6.3 Supabase — authentification (implémenté)
 
-Migration prévue pour synchroniser les données entre tous les postes de l'équipe et permettre la publication directe sur les réseaux sociaux sans outil tiers.
+Auth réelle (comptes, sessions cookie vérifiées côté serveur), qui remplace l'ancien
+système `localStorage`. Toutes les routes API sensibles sont protégées (401 si non
+authentifié). Les rôles applicatifs vivent dans la table `profiles`.
 
-> Voir `docs/explanation/adr/001-persistance-locale.md` pour le détail.
+> Détails : `docs/explanation/adr/007-auth-supabase.md`, `lib/supabase/*`, `proxy.ts`.
+
+---
+
+### 6.4 OCR bulletins — Google Gemini (implémenté)
+
+`POST /api/ocr` (authentifié) envoie un bulletin d'inscription PDF à **Gemini 2.5 Flash**
+et en extrait les champs (nom, prénom, date de naissance, téléphones, montant, date de
+signature) pour pré-remplir le formulaire d'ajout de membre.
+
+- **Prérequis** : `GEMINI_API_KEY` dans l'environnement (sinon 500).
+
+> Détails : `docs/explanation/adr/006-ocr-gemini.md`, `app/api/ocr/route.ts`.
 
 ---
 
 ## 7. Limites actuelles et roadmap
 
-### Limites connues en phase 1
+### Limites connues
 
-| Limite | Impact | Solution phase 2 |
+| Limite | Impact | Piste |
 |---|---|---|
-| Données en `localStorage` | Pas de partage entre postes | Migration Supabase |
-| Pas de notifications | Alertes visibles seulement à la connexion | Push notifications (Supabase Realtime) |
-| Export CSV non implémenté | Saisie manuelle depuis Google Sheets | Boutons export/import CSV |
-| Publication réseaux sociaux via Zapier | Dépendance service tiers | Direct via Supabase Edge Functions |
-| Pas de gestion de fichiers | Pas de pièces jointes | Supabase Storage |
+| Modules hors Familles/Assiduité en `localStorage` | Pas de partage entre postes (ateliers, finances, communication, membres, roadmap) | Étendre le backend partagé (Sheets/Supabase) |
+| Pas de notifications | Alertes visibles seulement à la connexion | Notifications (email / Realtime) |
+| Publication réseaux sociaux via Zapier | Dépendance service tiers | Publication directe |
+| Upload documents plafonné (~4,5 Mo) | Gros PDF refusés | Upload direct vers Drive/Storage |
 
-### Fonctionnalités prévues (phase 2)
+### Fonctionnalités prévues
 
-- [ ] Export / Import CSV bénéficiaires et présences
-- [ ] Synchronisation Google Sheets via Apps Script
-- [ ] Base de données Supabase partagée (multi-utilisateurs)
+- [ ] Étendre le stockage partagé aux modules encore en `localStorage`
+- [ ] Notifications par email (absences, deadlines)
 - [ ] Authentification renforcée (2FA)
 - [ ] Publication directe réseaux sociaux (sans Zapier)
-- [ ] Notifications par email (absences, deadlines)
+- [x] Authentification serveur partagée (Supabase) ✅
+- [x] Familles & Assiduité connectés à Google Sheets ✅
+- [x] OCR des bulletins d'inscription (Gemini) ✅
 
 ---
 
@@ -310,16 +309,22 @@ Migration prévue pour synchroniser les données entre tous les postes de l'équ
 
 ### En cas de problème
 
-**L'app ne charge pas** :
+**L'app ne charge pas / connexion impossible** :
 1. Vider le cache navigateur (`Ctrl+Shift+R` / `Cmd+Shift+R`)
-2. Vérifier le statut de Vercel : [vercel.com/status](https://vercel.com/status)
+2. Vérifier les variables Supabase sur Vercel (surtout `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)
+3. Vérifier le statut de Vercel : [vercel.com/status](https://vercel.com/status)
 
-**Les données ont disparu** :
-- Les données sont dans le `localStorage` du navigateur. Si le cache a été vidé, les données sont perdues.
-- → Prévoir une sauvegarde régulière via export CSV (à implémenter en phase 2)
+**Familles / Assiduité ne chargent pas** :
+- Vérifier `GOOGLE_CLIENT_EMAIL` / `GOOGLE_PRIVATE_KEY` et que le compte de service est **Éditeur** du Sheet.
+
+**L'OCR échoue (500)** :
+- Vérifier que `GEMINI_API_KEY` est bien configurée sur Vercel.
+
+**Données `localStorage` disparues** :
+- Les modules encore en `localStorage` (ateliers, finances, communication, membres, roadmap) sont propres au navigateur : un cache vidé = données perdues sur ce poste. Familles et Assiduité, elles, sont dans Google Sheets.
 
 **Ajouter un·e utilisateur·rice** :
-- Seul·e un·e admin peut créer des comptes (page `/compte`)
+- Seul·e un·e admin peut créer des comptes (page `/compte`).
 
 ---
 

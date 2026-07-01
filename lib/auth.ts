@@ -3,7 +3,7 @@
 //
 // La logique d'authentification vit désormais dans Supabase
 // (voir lib/supabase/*, lib/auth-context.tsx, lib/auth-client.ts et
-// docs/adr/004-auth-supabase.md). Ce fichier ne conserve que les
+// docs/explanation/adr/007-auth-supabase.md). Ce fichier ne conserve que les
 // types/labels réutilisés dans toute l'app (rôles, forme de l'utilisateur).
 // ──────────────────────────────────────────────
 
