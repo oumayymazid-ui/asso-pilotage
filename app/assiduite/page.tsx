@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { ateliers as ateliersMock } from "@/lib/mock-data"
 import {
   BarChart2, AlertTriangle, Users, CheckCircle,
-  Clock, GraduationCap, CalendarDays, ChevronDown,
+  Clock, GraduationCap, CalendarDays, ChevronDown, Search, X,
 } from "lucide-react"
 
 // ──────────────────────────────────────────────
@@ -57,17 +56,24 @@ interface GroupStats {
 // ──────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────
-const S_SESSIONS  = "asso-ateliers-sessions"
-const S_BENEF     = "asso-beneficiaires"
-const S_PRESENCES = (id: number) => `asso-presences-atelier-${id}`
 const SEUIL_ALERTE = 3
 
 const GROUPES = ["Débutants", "Intermédiaires", "Avancées"]
 
-const NIVEAU_TO_GROUPE: Record<string, string> = {
-  "débutant":       "Débutants",
-  "intermédiaire":  "Intermédiaires",
-  "avancé":         "Avancées",
+// Regroupe les niveaux réels du Sheet (FLE : Alpha/A1/A2/B1… ; classes
+// scolaires : CP…Terminale) dans les 3 grands groupes d'affichage.
+function niveauToGroupe(niveau: string): string {
+  const n = (niveau ?? "").toLowerCase()
+  if (/alpha|a1/.test(n)) return "Débutants"
+  if (/a2/.test(n)) return "Intermédiaires"
+  if (/b1|b2|c1|c2/.test(n)) return "Avancées"
+  if (/cp|ce1|ce2|cm1|cm2/.test(n)) return "Débutants"
+  if (/6eme|5eme|4eme|3eme|6e|5e|4e|3e/.test(n)) return "Intermédiaires"
+  if (/2nde|seconde|1ere|premiere|terminale|cap/.test(n)) return "Avancées"
+  if (/débutant|debutant/.test(n)) return "Débutants"
+  if (/intermédiaire|intermediaire/.test(n)) return "Intermédiaires"
+  if (/avancé|avance/.test(n)) return "Avancées"
+  return niveau || "—"
 }
 
 const GROUPE_COLORS: Record<string, { bg: string; text: string; border: string; bar: string }> = {
@@ -85,11 +91,6 @@ const PERIODE_LABELS: Record<Periode, string> = {
 // ──────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────
-function loadJson<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback
-  try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : fallback } catch { return fallback }
-}
-
 function isInPeriod(dateStr: string, periode: Periode): boolean {
   const date = new Date(dateStr)
   const now  = new Date()
@@ -124,25 +125,35 @@ function presenceText(taux: number) {
 // Page
 // ──────────────────────────────────────────────
 export default function AssiduiteePage() {
-  const [sessions, setSessions]         = useState<Session[]>(ateliersMock.sessions as Session[])
-  const [beneficiaires, setBenef]       = useState<Beneficiaire[]>(ateliersMock.beneficiaires as Beneficiaire[])
+  const [sessions, setSessions]         = useState<Session[]>([])
+  const [beneficiaires, setBenef]       = useState<Beneficiaire[]>([])
   const [allPresences, setAllPresences] = useState<Record<number, Record<number, PresenceStatus>>>({})
   const [periode, setPeriode]           = useState<Periode>("tout")
   const [sortKey, setSortKey]           = useState<SortKey>("tauxPresence")
   const [sortDir, setSortDir]           = useState<SortDir>("asc")
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState<string | null>(null)
+  const [search, setSearch]             = useState("")
 
+  // Données chargées depuis le Google Sheet via la route serveur /api/assiduite
   useEffect(() => {
-    const loadedSessions = loadJson<Session[]>(S_SESSIONS, ateliersMock.sessions as Session[])
-    const loadedBenefs   = loadJson<Beneficiaire[]>(S_BENEF, ateliersMock.beneficiaires as Beneficiaire[])
-    setSessions(loadedSessions)
-    setBenef(loadedBenefs)
-
-    const combined: Record<number, Record<number, PresenceStatus>> = {}
-    loadedSessions.forEach(s => {
-      const p = loadJson<Record<number, PresenceStatus>>(S_PRESENCES(s.id), {})
-      if (Object.keys(p).length > 0) combined[s.id] = p
-    })
-    setAllPresences(combined)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch("/api/assiduite")
+        const data = await res.json()
+        if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+        if (cancelled) return
+        setSessions(data.sessions ?? [])
+        setBenef(data.beneficiaires ?? [])
+        setAllPresences(data.presences ?? {})
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Erreur de chargement")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   // Sessions filtrées par période
@@ -198,6 +209,15 @@ export default function AssiduiteePage() {
     else { setSortKey(key); setSortDir("asc") }
   }
 
+  // Filtre de recherche par nom/prénom sur le tableau détaillé
+  const displayedStats = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return sortedStats
+    return sortedStats.filter(s =>
+      `${s.benef.prenom} ${s.benef.nom}`.toLowerCase().includes(q)
+    )
+  }, [sortedStats, search])
+
   // Alertes
   const alertes = studentStats.filter(s => s.absents >= SEUIL_ALERTE)
   const risque  = studentStats.filter(s => s.absents === SEUIL_ALERTE - 1)
@@ -211,7 +231,7 @@ export default function AssiduiteePage() {
   // Stats par groupe
   const groupStats = useMemo((): GroupStats[] => {
     return GROUPES.map(g => {
-      const members  = studentStats.filter(s => (NIVEAU_TO_GROUPE[s.benef.niveau] ?? s.benef.niveau) === g)
+      const members  = studentStats.filter(s => niveauToGroupe(s.benef.niveau) === g)
       const total    = members.reduce((acc, s) => acc + s.seances, 0)
       const presents = members.reduce((acc, s) => acc + s.presents, 0)
       const absents  = members.reduce((acc, s) => acc + s.absents, 0)
@@ -258,6 +278,16 @@ export default function AssiduiteePage() {
           ))}
         </div>
       </header>
+
+      {/* État de chargement / erreur (données Google Sheet) */}
+      {loading && (
+        <div className="mb-6 text-sm text-muted">Chargement des données depuis Google Sheets…</div>
+      )}
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-alert">
+          Impossible de charger les données du Sheet : {error}
+        </div>
+      )}
 
       {/* KPI globaux */}
       <div className="grid grid-cols-4 gap-4 mb-8">
@@ -327,7 +357,7 @@ export default function AssiduiteePage() {
                       <AlertTriangle size={9} /> ALERTE
                     </span>
                     <span className="text-xs text-muted truncate">
-                      {NIVEAU_TO_GROUPE[s.benef.niveau] ?? s.benef.niveau}
+                      {niveauToGroupe(s.benef.niveau)}
                     </span>
                   </div>
                   <p className="font-semibold text-foreground">{s.benef.prenom} {s.benef.nom}</p>
@@ -349,7 +379,7 @@ export default function AssiduiteePage() {
                       <Clock size={9} /> RISQUE
                     </span>
                     <span className="text-xs text-muted truncate">
-                      {NIVEAU_TO_GROUPE[s.benef.niveau] ?? s.benef.niveau}
+                      {niveauToGroupe(s.benef.niveau)}
                     </span>
                   </div>
                   <p className="font-semibold text-foreground">{s.benef.prenom} {s.benef.nom}</p>
@@ -416,10 +446,33 @@ export default function AssiduiteePage() {
 
       {/* Tableau détaillé par élève */}
       <section>
-        <h2 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-          <GraduationCap size={13} />
-          Détail par élève
-        </h2>
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <h2 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+            <GraduationCap size={13} />
+            Détail par élève
+          </h2>
+          <div className="relative w-64 max-w-full">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher un élève…"
+              aria-label="Rechercher un élève"
+              className="w-full pl-9 pr-8 py-2 text-sm bg-surface border border-border rounded-xl outline-none focus:border-absences transition-colors"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Effacer la recherche"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
         <div className="bg-surface rounded-xl border border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -471,10 +524,10 @@ export default function AssiduiteePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {sortedStats.map(s => {
+              {displayedStats.map(s => {
                 const alerte      = s.absents >= SEUIL_ALERTE
                 const enRisque    = s.absents === SEUIL_ALERTE - 1
-                const groupeLabel = NIVEAU_TO_GROUPE[s.benef.niveau] ?? s.benef.niveau
+                const groupeLabel = niveauToGroupe(s.benef.niveau)
                 const gc          = GROUPE_COLORS[groupeLabel]
                 return (
                   <tr
@@ -558,18 +611,23 @@ export default function AssiduiteePage() {
                   </tr>
                 )
               })}
-              {sortedStats.length === 0 && (
+              {displayedStats.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-5 py-10 text-center text-sm text-muted italic">
-                    Aucune donnée pour cette période.
+                    {search.trim()
+                      ? `Aucun élève ne correspond à « ${search.trim()} ».`
+                      : "Aucune donnée pour cette période."}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          {sortedStats.length > 0 && (
+          {displayedStats.length > 0 && (
             <p className="text-xs text-muted text-center py-3 border-t border-border">
-              Cliquer sur les en-têtes de colonnes pour trier · Seuil d&apos;alerte : {SEUIL_ALERTE} absences
+              {search.trim()
+                ? `${displayedStats.length} élève${displayedStats.length > 1 ? "s" : ""} trouvé${displayedStats.length > 1 ? "s" : ""} · `
+                : "Cliquer sur les en-têtes de colonnes pour trier · "}
+              Seuil d&apos;alerte : {SEUIL_ALERTE} absences
             </p>
           )}
         </div>
