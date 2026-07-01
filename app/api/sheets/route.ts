@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       case "addPaiement":     return ok(await addPaiement(sheets, body.data))
       case "updatePaiement":  return ok(await updatePaiement(sheets, body.idPaiement, body.data))
       case "deletePaiement":  return ok(await deletePaiement(sheets, body.idPaiement))
+      case "addInscription":  return ok(await addInscription(sheets, body.idMembre, body.data))
       case "updateInscription": return ok(await updateInscription(sheets, body.idInscription, body.data))
       case "addEvenement":    return ok(await addEvenement(sheets, body.data))
       case "updateEvenement": return ok(await updateEvenement(sheets, body.idEvenement, body.data))
@@ -374,27 +375,41 @@ async function addMembre(sheets: Sheets, data: Record<string, unknown>) {
   })
 
   // Une inscription n'est créée que si la personne est bénéficiaire.
-  // Statut, Type apprenant et Date d'inscription sont déterminés automatiquement.
   if (String(data.Beneficiaire) === "Oui") {
-    const inscId = await nextId(sheets, "INSCRIPTION")
-    const isEnfant = String(data.Role) === "Enfant"
-    await appendRow(sheets, "INSCRIPTION", {
-      "ID": inscId,
-      "Personne ID": id,
-      "Annee scolaire": data.Annee_Scolaire ?? "",
-      "Type apprenant": isEnfant ? "Soutien scolaire" : "FLE",
-      "Statut": "En cours",
-      "Niveau / Classe": isEnfant ? (data.Niveau ?? "") : "",
-      "Disponibilite": data.Disponibilite ?? "",
-      "Orientation": data.Source_Orientation ?? "",
-      "Date d'inscription": new Date().toISOString().split("T")[0],
-      "Montant adhesion": data.Montant_Adhesion ?? "",
-      "Montant d'inscription": data.Montant_Inscription ?? "",
-      "Remarques": data.Remarques ?? "",
-    })
+    await insertInscription(sheets, String(id), String(data.Role), data)
   }
 
   return { ok: true, ID_Membre: String(id) }
+}
+
+// Insère une ligne INSCRIPTION pour une personne.
+// Statut ("En cours"), Type apprenant (FLE / Soutien scolaire) et Date d'inscription
+// (aujourd'hui) sont déterminés automatiquement.
+async function insertInscription(sheets: Sheets, personneId: string, role: string, data: Record<string, unknown>) {
+  const inscId = await nextId(sheets, "INSCRIPTION")
+  const isEnfant = role === "Enfant"
+  await appendRow(sheets, "INSCRIPTION", {
+    "ID": inscId,
+    "Personne ID": personneId,
+    "Annee scolaire": data.Annee_Scolaire ?? "",
+    "Type apprenant": isEnfant ? "Soutien scolaire" : "FLE",
+    "Statut": "En cours",
+    "Niveau / Classe": isEnfant ? (data.Niveau ?? "") : "",
+    "Disponibilite": data.Disponibilite ?? "",
+    "Orientation": data.Source_Orientation ?? "",
+    "Date d'inscription": new Date().toISOString().split("T")[0],
+    "Montant adhesion": data.Montant_Adhesion ?? "",
+    "Montant d'inscription": data.Montant_Inscription ?? "",
+    "Remarques": data.Remarques ?? "",
+  })
+  return String(inscId)
+}
+
+// Ajoute une inscription à une personne existante et la marque bénéficiaire.
+async function addInscription(sheets: Sheets, idMembre: string, data: Record<string, unknown>) {
+  const inscId = await insertInscription(sheets, String(idMembre), String(data.Role), data)
+  await updateRowById(sheets, "PERSONNE", idMembre, { "Beneficiaire": "Oui" })
+  return { ok: true, ID_Inscription: inscId }
 }
 
 async function updateMembre(sheets: Sheets, idMembre: string, data: Record<string, unknown>) {

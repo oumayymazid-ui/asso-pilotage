@@ -195,6 +195,12 @@ export async function updateInscription(idInscription: string, data: Partial<Ins
   return apiPost({ action: "updateInscription", idInscription, data }) as Promise<{ ok: boolean }>
 }
 
+// Ajoute une inscription à une personne existante (et la marque bénéficiaire).
+// `data.Role` sert à déterminer le type d'apprenant (Adulte → FLE, Enfant → Soutien scolaire).
+export async function addInscription(idMembre: string, data: Partial<MembreSheet>): Promise<{ ok: boolean, ID_Inscription: string }> {
+  return apiPost({ action: "addInscription", idMembre, data }) as Promise<{ ok: boolean, ID_Inscription: string }>
+}
+
 // ── Upload de fichier (Drive) ───────────────────
 export async function uploadFichier(data: {
   idMembre?: string

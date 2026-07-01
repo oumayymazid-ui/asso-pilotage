@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback, use } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
+import SlideOver, { Field, Input, Select, Textarea, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
 import DateInput from "@/components/DateInput"
 import { ChevronRight, Plus, Pencil, Upload, FileText, ExternalLink, X } from "lucide-react"
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
-  addPaiement, updatePaiement, deletePaiement, updateInscription, uploadFichier,
+  addPaiement, updatePaiement, deletePaiement, updateInscription, addInscription, uploadFichier,
   fetchDocuments, deleteDocument,
   type FamilleSheet, type MembreSheet, type PaiementSheet, type InscriptionSheet, type DocumentJoint
 } from "@/lib/sheets-api"
@@ -99,6 +99,8 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [payForm, setPayForm]   = useState<Partial<PaiementSheet>>({})
   const [editAttenduId, setEditAttenduId] = useState<string | null>(null)
   const [attenduDraft, setAttenduDraft] = useState("")
+  const [inscOpen, setInscOpen] = useState(false)
+  const [inscForm, setInscForm] = useState<Partial<MembreSheet>>({})
   const [docOpen, setDocOpen]   = useState(false)
   const [docType, setDocType]   = useState("")
   const [docFile, setDocFile]   = useState<File | null>(null)
@@ -180,6 +182,21 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     await updateInscription(idInscription, { Montant_Du: attenduDraft })
     await loadData()
     setEditAttenduId(null)
+  }
+
+  function openNewInscription() {
+    setInscForm({
+      Role: membre?.Role ?? "Adulte",
+      Annee_Scolaire: "", Niveau: "", Disponibilite: "", Source_Orientation: "",
+      Montant_Adhesion: "", Montant_Inscription: "30", Remarques: "",
+    })
+    setInscOpen(true)
+  }
+
+  async function handleSaveInscription() {
+    await addInscription(membreId, inscForm)
+    await loadData()
+    setInscOpen(false)
   }
 
   function openDocument() {
@@ -355,12 +372,18 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
             Paiements
             {paiements.length > 0 && <span className="ml-2 text-xs font-normal text-muted">({paiements.length})</span>}
           </h2>
-          {inscriptions.length > 0 && (
-            <button onClick={openNewPaiement}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-familles text-white text-xs font-medium hover:bg-familles-dark transition-colors">
-              <Plus size={13} />Paiement
+          <div className="flex items-center gap-2">
+            <button onClick={openNewInscription}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-familles-light text-familles-dark text-xs font-medium hover:bg-familles hover:text-white transition-colors">
+              <Plus size={13} />Inscription
             </button>
-          )}
+            {inscriptions.length > 0 && (
+              <button onClick={openNewPaiement}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-familles text-white text-xs font-medium hover:bg-familles-dark transition-colors">
+                <Plus size={13} />Paiement
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Récap par inscription : attendu / payé / reste à payer */}
@@ -439,7 +462,9 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
         )}
 
         {inscriptions.length === 0 && (
-          <p className="text-sm text-muted italic">Aucune inscription : impossible d'ajouter un paiement.</p>
+          <p className="text-sm text-muted italic">
+            Aucune inscription. Ajoutez-en une (bouton « Inscription ») pour pouvoir enregistrer des paiements.
+          </p>
         )}
       </div>
 
@@ -474,6 +499,55 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
           </Field>
           <SaveButton />
           {payEditing && <DeleteButton onClick={handleDeletePaiement} />}
+        </form>
+      </SlideOver>
+
+      {/* SlideOver ajouter inscription */}
+      <SlideOver open={inscOpen} onClose={() => setInscOpen(false)} title="Ajouter une inscription" width="md">
+        <form onSubmit={e => { e.preventDefault(); handleSaveInscription() }} className="flex flex-col gap-4">
+          <FormRow>
+            <Field label="Catégorie" required>
+              <Select value={String(inscForm.Role ?? "Adulte")} onChange={e => setInscForm(f => ({ ...f, Role: e.target.value }))}>
+                <option value="Adulte">Adulte</option>
+                <option value="Enfant">Enfant</option>
+              </Select>
+            </Field>
+            <Field label="Type d'apprenant">
+              <Input value={inscForm.Role === "Enfant" ? "Soutien scolaire" : "FLE"} readOnly className="bg-slate-50 text-muted" />
+            </Field>
+          </FormRow>
+          <Field label="Année scolaire">
+            <Input value={String(inscForm.Annee_Scolaire ?? "")} onChange={e => setInscForm(f => ({ ...f, Annee_Scolaire: e.target.value }))} placeholder="ex. 2025-2026" />
+          </Field>
+          {inscForm.Role === "Enfant" && (
+            <Field label="Niveau scolaire">
+              <Input value={String(inscForm.Niveau ?? "")} onChange={e => setInscForm(f => ({ ...f, Niveau: e.target.value }))} placeholder="ex. CE2, 5ᵉ…" />
+            </Field>
+          )}
+          <FormRow>
+            <Field label="Disponibilité">
+              <Input value={String(inscForm.Disponibilite ?? "")} onChange={e => setInscForm(f => ({ ...f, Disponibilite: e.target.value }))} />
+            </Field>
+            <Field label="Orientation">
+              <Input value={String(inscForm.Source_Orientation ?? "")} onChange={e => setInscForm(f => ({ ...f, Source_Orientation: e.target.value }))} />
+            </Field>
+          </FormRow>
+          <FormRow>
+            <Field label="Montant d'adhésion (€)">
+              <Input type="number" value={String(inscForm.Montant_Adhesion ?? "")} onChange={e => setInscForm(f => ({ ...f, Montant_Adhesion: e.target.value }))} />
+            </Field>
+            <Field label="Montant d'inscription (€)">
+              <Input type="number" value={String(inscForm.Montant_Inscription ?? "")} onChange={e => setInscForm(f => ({ ...f, Montant_Inscription: e.target.value }))} />
+            </Field>
+          </FormRow>
+          <Field label="Remarques">
+            <Textarea value={String(inscForm.Remarques ?? "")} onChange={e => setInscForm(f => ({ ...f, Remarques: e.target.value }))} />
+          </Field>
+          <p className="text-xs text-muted">
+            Le statut « En cours » et la date d'inscription (aujourd'hui) sont enregistrés automatiquement.
+            Le membre sera marqué bénéficiaire.
+          </p>
+          <SaveButton />
         </form>
       </SlideOver>
 
