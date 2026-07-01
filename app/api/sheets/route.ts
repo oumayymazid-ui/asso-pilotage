@@ -474,8 +474,12 @@ async function updateInscription(sheets: Sheets, idInscription: string, data: Re
     await ensureColumn(sheets, "INSCRIPTION", "Montant d'inscription")
     map["Montant d'inscription"] = data.Montant_Inscription
   }
+  if (data.Annee_Scolaire !== undefined)   map["Annee scolaire"] = data.Annee_Scolaire
+  if (data.Type_Apprenant !== undefined)   map["Type apprenant"] = data.Type_Apprenant
   if (data.Statut !== undefined)           map["Statut"] = data.Statut
   if (data.Niveau !== undefined)           map["Niveau / Classe"] = data.Niveau
+  if (data.Disponibilite !== undefined)    map["Disponibilite"] = data.Disponibilite
+  if (data.Orientation !== undefined)      map["Orientation"] = data.Orientation
   const ok = await updateRowById(sheets, "INSCRIPTION", idInscription, map)
   return ok ? { ok: true } : { error: "Inscription introuvable" }
 }

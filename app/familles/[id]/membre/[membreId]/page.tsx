@@ -70,9 +70,13 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [payOpen, setPayOpen]   = useState(false)
   const [payEditing, setPayEditing] = useState(false)
   const [payForm, setPayForm]   = useState<Partial<PaiementSheet>>({})
-  const [montantOpen, setMontantOpen] = useState(false)
-  const [montantInscId, setMontantInscId] = useState("")
-  const [montantForm, setMontantForm] = useState({ Montant_Adhesion: "", Montant_Inscription: "" })
+  const [inscOpen, setInscOpen] = useState(false)
+  const [inscEditing, setInscEditing] = useState<InscriptionSheet | null>(null)
+  const [inscForm, setInscForm] = useState({
+    Annee_Scolaire: "", Type_Apprenant: "", Niveau: "",
+    Disponibilite: "", Orientation: "",
+    Montant_Adhesion: "", Montant_Inscription: "",
+  })
   const [docOpen, setDocOpen]   = useState(false)
   const [docType, setDocType]   = useState("")
   const [docFile, setDocFile]   = useState<File | null>(null)
@@ -159,13 +163,19 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     setPayOpen(false)
   }
 
-  async function handleSaveMontants() {
-    await updateInscription(montantInscId, {
-      Montant_Adhesion: montantForm.Montant_Adhesion,
-      Montant_Inscription: montantForm.Montant_Inscription,
+  async function handleSaveInscription() {
+    if (!inscEditing) return
+    await updateInscription(inscEditing.ID_Inscription, {
+      Annee_Scolaire:    inscForm.Annee_Scolaire,
+      Type_Apprenant:    inscForm.Type_Apprenant,
+      Niveau:            inscForm.Niveau,
+      Disponibilite:     inscForm.Disponibilite,
+      Orientation:       inscForm.Orientation,
+      Montant_Adhesion:  inscForm.Montant_Adhesion,
+      Montant_Inscription: inscForm.Montant_Inscription,
     })
     await loadData()
-    setMontantOpen(false)
+    setInscOpen(false)
   }
 
   function openDocument() {
@@ -394,16 +404,21 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
                     </p>
                     <button
                       onClick={() => {
-                        setMontantInscId(insc.ID_Inscription)
-                        setMontantForm({
-                          Montant_Adhesion: String(insc.Montant_Adhesion ?? ""),
+                        setInscEditing(insc)
+                        setInscForm({
+                          Annee_Scolaire:    String(insc.Annee_Scolaire ?? ""),
+                          Type_Apprenant:    String(insc.Type_Apprenant ?? ""),
+                          Niveau:            String(insc.Niveau ?? ""),
+                          Disponibilite:     String(insc.Disponibilite ?? ""),
+                          Orientation:       String(insc.Orientation ?? ""),
+                          Montant_Adhesion:  String(insc.Montant_Adhesion ?? ""),
                           Montant_Inscription: String(insc.Montant_Inscription ?? "30"),
                         })
-                        setMontantOpen(true)
+                        setInscOpen(true)
                       }}
                       className="flex items-center gap-1.5 text-xs text-familles-dark hover:underline"
                     >
-                      <Pencil size={12} /> Modifier les montants
+                      <Pencil size={12} /> Modifier
                     </button>
                   </div>
                   {insc.Remarques && (
@@ -524,29 +539,73 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
         </form>
       </SlideOver>
 
-      {/* SlideOver montants */}
-      <SlideOver open={montantOpen} onClose={() => setMontantOpen(false)} title="Modifier les montants" width="md">
-        <form onSubmit={e => { e.preventDefault(); handleSaveMontants() }} className="flex flex-col gap-4">
-          <Field label="Montant d'adhésion (€)">
-            <Input
-              type="number"
-              value={montantForm.Montant_Adhesion}
-              onChange={e => setMontantForm(f => ({ ...f, Montant_Adhesion: e.target.value }))}
-              placeholder="0"
-            />
+      {/* SlideOver inscription */}
+      <SlideOver open={inscOpen} onClose={() => setInscOpen(false)} title="Modifier l'inscription" width="md">
+        <form onSubmit={e => { e.preventDefault(); handleSaveInscription() }} className="flex flex-col gap-4">
+          {/* Champs en lecture seule */}
+          {inscEditing && (
+            <div className="rounded-xl bg-slate-50 border border-border px-4 py-3 flex flex-col gap-2">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1">Informations non modifiables</p>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted">Statut</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  inscEditing.Statut?.toUpperCase().includes("COURS")  ? "bg-finances-light text-finances-dark"  :
+                  inscEditing.Statut?.toUpperCase().includes("SUSPEN") ? "bg-ateliers-light text-ateliers-dark"  :
+                  inscEditing.Statut?.toUpperCase().includes("ARRET")  ? "bg-absences-light text-absences-dark"  :
+                  "bg-slate-100 text-slate-600"
+                }`}>{inscEditing.Statut || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted">Date d'inscription</span>
+                <span className="text-xs font-medium text-foreground">{inscEditing.Date_Inscription || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted">Bénéficiaire</span>
+                <span className="text-xs font-medium text-foreground">{inscEditing.Beneficiaire || "—"}</span>
+              </div>
+            </div>
+          )}
+          {/* Champs modifiables */}
+          <FormRow>
+            <Field label="Année scolaire">
+              <Input value={inscForm.Annee_Scolaire} onChange={e => setInscForm(f => ({ ...f, Annee_Scolaire: e.target.value }))} placeholder="2024-2025" />
+            </Field>
+            <Field label="Type d'apprenant">
+              <Select value={inscForm.Type_Apprenant} onChange={e => setInscForm(f => ({ ...f, Type_Apprenant: e.target.value }))}>
+                <option value="">—</option>
+                <option value="Adulte">Adulte</option>
+                <option value="Enfant">Enfant</option>
+              </Select>
+            </Field>
+          </FormRow>
+          <Field label="Niveau">
+            <Select value={inscForm.Niveau} onChange={e => setInscForm(f => ({ ...f, Niveau: e.target.value }))}>
+              <option value="">—</option>
+              <option value="Alpha">Alpha</option>
+              <option value="A1-">A1-</option>
+              <option value="A1+">A1+</option>
+              <option value="A2-">A2-</option>
+              <option value="A2+/B1">A2+/B1</option>
+            </Select>
           </Field>
-          <Field label="Montant d'inscription (€)">
-            <Input
-              type="number"
-              value={montantForm.Montant_Inscription}
-              onChange={e => setMontantForm(f => ({ ...f, Montant_Inscription: e.target.value }))}
-              placeholder="30"
-            />
+          <Field label="Disponibilités">
+            <Input value={inscForm.Disponibilite} onChange={e => setInscForm(f => ({ ...f, Disponibilite: e.target.value }))} placeholder="ex. Lundi matin, Mercredi" />
           </Field>
+          <Field label="Orientation">
+            <Input value={inscForm.Orientation} onChange={e => setInscForm(f => ({ ...f, Orientation: e.target.value }))} placeholder="ex. CAF, CPAM…" />
+          </Field>
+          <FormRow>
+            <Field label="Montant d'adhésion (€)">
+              <Input type="number" value={inscForm.Montant_Adhesion} onChange={e => setInscForm(f => ({ ...f, Montant_Adhesion: e.target.value }))} placeholder="0" />
+            </Field>
+            <Field label="Montant d'inscription (€)">
+              <Input type="number" value={inscForm.Montant_Inscription} onChange={e => setInscForm(f => ({ ...f, Montant_Inscription: e.target.value }))} placeholder="30" />
+            </Field>
+          </FormRow>
           <div className="px-3 py-2.5 rounded-xl bg-slate-50 border border-border text-sm text-muted">
             Total dû :{" "}
             <span className="font-semibold text-foreground">
-              {(Number(montantForm.Montant_Adhesion) || 0) + (Number(montantForm.Montant_Inscription) || 0)} €
+              {(Number(inscForm.Montant_Adhesion) || 0) + (Number(inscForm.Montant_Inscription) || 0)} €
             </span>
           </div>
           <SaveButton />
