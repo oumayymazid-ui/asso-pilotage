@@ -121,9 +121,9 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     await loadData()
   }
 
-  function openNewPaiement() {
+  function openNewPaiement(idInscription?: string) {
     setPayEditing(false)
-    setPayForm({ ID_Inscription: inscriptions[0]?.ID_Inscription ?? "", Date_Paiement: "", Montant: "", Mode_Paiement: "" })
+    setPayForm({ ID_Inscription: idInscription ?? inscriptions[0]?.ID_Inscription ?? "", Date_Paiement: "", Montant: "", Mode_Paiement: "" })
     setPayOpen(true)
   }
 
@@ -338,113 +338,93 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       {/* Journal : commentaires + appels + emails */}
       <JournalSuivi notes={membre.Notes} onSave={handleSaveNotes} />
 
-      {/* Paiements */}
+      {/* Paiements — une carte par année d'inscription, avec ses paiements */}
       <div className="bg-surface border border-border rounded-xl p-5 mb-6">
-        <div className="flex items-center justify-between mb-4 gap-2">
-          <h2 className="text-sm font-semibold text-foreground">
-            Paiements
-            {paiements.length > 0 && <span className="ml-2 text-xs font-normal text-muted">({paiements.length})</span>}
-          </h2>
-          {inscriptions.length > 0 && (
-            <button onClick={openNewPaiement}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-familles text-white text-xs font-medium hover:bg-familles-dark transition-colors">
-              <Plus size={13} />Paiement
-            </button>
-          )}
-        </div>
+        <h2 className="text-sm font-semibold text-foreground mb-4">Paiements</h2>
 
-        {/* Récap par inscription : attendu / payé / reste à payer */}
-        {inscriptions.length > 0 && (
-          <div className="mb-4 space-y-2">
+        {inscriptions.length === 0 ? (
+          <p className="text-sm text-muted italic">Aucune inscription : impossible d'ajouter un paiement.</p>
+        ) : (
+          <div className="space-y-3">
             {inscriptions.map(insc => {
-              const paye = paiements
-                .filter(p => p.ID_Inscription === insc.ID_Inscription)
-                .reduce((s, p) => s + (Number(p.Montant) || 0), 0)
+              const paiementsInsc = paiements.filter(p => p.ID_Inscription === insc.ID_Inscription)
+              const paye = paiementsInsc.reduce((s, p) => s + (Number(p.Montant) || 0), 0)
               const attenduDefini = insc.Montant_Du !== undefined && insc.Montant_Du !== "" && insc.Montant_Du !== null
               const attendu = Number(insc.Montant_Du) || 0
               const reste = attendu - paye
               const enEdition = editAttenduId === insc.ID_Inscription
               return (
-                <div key={insc.ID_Inscription} className="rounded-lg border border-border px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div key={insc.ID_Inscription} className="rounded-lg border border-border p-4">
+                  {/* En-tête : année + statut reste dû */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
                     <p className="text-sm font-semibold text-foreground">{insc.Annee_Scolaire || "Inscription"}</p>
                     {attenduDefini && (
                       reste > 0
-                        ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-absences-light text-absences-dark">Reste à payer {reste} €</span>
+                        ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-absences-light text-absences-dark">Reste dû {reste} €</span>
                         : <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-finances-light text-finances-dark">Soldé</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5 text-xs text-muted flex-wrap">
+
+                  {/* Montant attendu (modifiable) */}
+                  <div className="flex items-center gap-1.5 text-xs text-muted mb-3">
                     {enEdition ? (
-                      <span className="flex items-center gap-1.5">
-                        Attendu
+                      <>
+                        <span>Attendu</span>
                         <input type="number" autoFocus value={attenduDraft}
                           onChange={e => setAttenduDraft(e.target.value)}
                           className="w-20 px-2 py-1 rounded-lg border border-border text-sm" />
                         <button onClick={() => handleSaveAttendu(insc.ID_Inscription)} className="text-familles-dark font-medium hover:underline">OK</button>
                         <button onClick={() => setEditAttenduId(null)} className="text-muted hover:underline">Annuler</button>
-                      </span>
+                      </>
                     ) : (
-                      <span className="flex items-center gap-1.5">
-                        Attendu <span className="font-medium text-foreground">{attenduDefini ? `${attendu} €` : "non défini"}</span>
-                        <button
-                          onClick={() => { setEditAttenduId(insc.ID_Inscription); setAttenduDraft(attenduDefini ? String(attendu) : "") }}
-                          className="text-familles-dark hover:text-familles-dark" aria-label="Modifier le montant attendu" title="Modifier le montant attendu">
-                          <Pencil size={12} />
-                        </button>
-                      </span>
+                      <>
+                        <span>Attendu <span className="font-medium text-foreground">{attenduDefini ? `${attendu} €` : "non défini"}</span></span>
+                        <button onClick={() => { setEditAttenduId(insc.ID_Inscription); setAttenduDraft(attenduDefini ? String(attendu) : "") }}
+                          aria-label="Modifier le montant attendu" title="Modifier le montant attendu"
+                          className="text-familles-dark"><Pencil size={12} /></button>
+                      </>
                     )}
                   </div>
+
+                  {/* Paiements de cette année */}
+                  {paiementsInsc.length > 0 ? (
+                    <ul className="space-y-2 mb-3">
+                      {paiementsInsc.map(p => (
+                        <li key={p.ID_Paiement} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-bold text-familles-dark shrink-0">{p.Montant ? `${p.Montant} €` : "—"}</span>
+                            {p.Mode_Paiement && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-familles-light text-familles-dark">{p.Mode_Paiement}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-sm text-foreground">{p.Date_Paiement || "—"}</span>
+                            <button onClick={() => openEditPaiement(p)} aria-label="Modifier ce paiement" title="Modifier ou supprimer"
+                              className="p-1.5 rounded-lg text-muted hover:text-familles-dark hover:bg-familles-light transition-colors">
+                              <Pencil size={14} />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted italic mb-3">Aucun paiement enregistré.</p>
+                  )}
+
+                  <button onClick={() => openNewPaiement(insc.ID_Inscription)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-familles text-white text-xs font-medium hover:bg-familles-dark transition-colors">
+                    <Plus size={13} />Ajouter un paiement
+                  </button>
                 </div>
               )
             })}
           </div>
-        )}
-
-        {/* Liste des paiements (modifiable) */}
-        {paiements.length > 0 && (
-          <div className="space-y-2">
-            {paiements.map(p => (
-              <div key={p.ID_Paiement} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-sm font-bold text-familles-dark shrink-0">
-                    {p.Montant ? `${p.Montant} €` : "—"}
-                  </span>
-                  {p.Mode_Paiement && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-familles-light text-familles-dark">
-                      {p.Mode_Paiement}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <p className="text-sm font-medium text-foreground">{p.Date_Paiement || "—"}</p>
-                  <button onClick={() => openEditPaiement(p)} aria-label="Modifier ce paiement" title="Modifier"
-                    className="p-1.5 rounded-lg text-muted hover:text-familles-dark hover:bg-familles-light transition-colors">
-                    <Pencil size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {inscriptions.length === 0 && (
-          <p className="text-sm text-muted italic">Aucune inscription : impossible d'ajouter un paiement.</p>
         )}
       </div>
 
       {/* SlideOver paiement */}
       <SlideOver open={payOpen} onClose={() => setPayOpen(false)} title={payEditing ? "Modifier le paiement" : "Ajouter un paiement"} width="md">
         <form onSubmit={e => { e.preventDefault(); handleSavePaiement() }} className="flex flex-col gap-4">
-          {!payEditing && inscriptions.length > 1 && (
-            <Field label="Année scolaire (inscription)" required>
-              <Select value={String(payForm.ID_Inscription ?? "")} onChange={e => setPayForm(f => ({ ...f, ID_Inscription: e.target.value }))}>
-                {inscriptions.map(i => (
-                  <option key={i.ID_Inscription} value={i.ID_Inscription}>{i.Annee_Scolaire || `Inscription ${i.ID_Inscription}`}</option>
-                ))}
-              </Select>
-            </Field>
-          )}
           <FormRow>
             <Field label="Montant (€)" required>
               <Input type="number" value={String(payForm.Montant ?? "")} onChange={e => setPayForm(f => ({ ...f, Montant: e.target.value }))} />
