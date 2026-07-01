@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
 import AdresseAutocomplete from "@/components/AdresseAutocomplete"
-import { ChevronRight, Pencil, Plus, MapPin } from "lucide-react"
+import { ChevronRight, Pencil, Plus } from "lucide-react"
 import {
   fetchFamilles, fetchMembres, updateFamille, addMembre, deleteMembre,
   type FamilleSheet, type MembreSheet
@@ -98,6 +98,22 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
 
   const quartier = String(famille.Quartier_QVP ?? "").trim()
 
+  // Dérivé des membres (pas d'appel API supplémentaire)
+  const contactPrincipal = membres.find(m => String(m.Contact_Principal ?? "").toLowerCase() === "oui") ?? null
+  const nbAdultes = membres.filter(m => m.Role === "Adulte").length
+  const nbEnfants = membres.filter(m => m.Role === "Enfant").length
+  const composition = [
+    nbAdultes ? `${nbAdultes} adulte${nbAdultes > 1 ? "s" : ""}` : "",
+    nbEnfants ? `${nbEnfants} enfant${nbEnfants > 1 ? "s" : ""}` : "",
+  ].filter(Boolean).join(" · ")
+
+  const champsFamille: { label: string; value: string }[] = [
+    { label: "Adresse", value: String(famille.Adresse_Complete || famille.Adresse || "") },
+    { label: "Quartier QVP", value: quartier || "Hors QVP" },
+    { label: "Composition", value: composition },
+    { label: "Nombre de membres", value: String(membres.length) },
+  ].filter(c => c.value !== "")
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
 
@@ -124,27 +140,24 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
 
       {/* Infos famille */}
       <div className="bg-surface border border-border rounded-xl p-5 mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          {(famille.Adresse_Complete || famille.Adresse) && (
-            <div className="flex items-start gap-2">
-              <MapPin size={15} className="text-muted mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs text-muted mb-0.5">Adresse</p>
-                <p className="font-medium">{famille.Adresse_Complete || famille.Adresse}</p>
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          {champsFamille.map(c => (
+            <div key={c.label}>
+              <p className="text-xs text-muted mb-0.5">{c.label}</p>
+              <p className="text-sm font-medium text-foreground">{c.value}</p>
             </div>
-          )}
-          <div>
-            <p className="text-xs text-muted mb-1">Quartier QVP</p>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${quartier ? "bg-familles-light text-familles-dark" : "bg-slate-100 text-slate-500"}`}>
-              {quartier || "—"}
-            </span>
-          </div>
-          <div>
-            <p className="text-xs text-muted mb-1">Membres</p>
-            <p className="font-medium">{membres.length}</p>
-          </div>
+          ))}
         </div>
+
+        {contactPrincipal && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-muted mb-0.5">Contact principal</p>
+            <p className="text-sm font-medium text-foreground">{contactPrincipal.Prenom} {contactPrincipal.Nom}</p>
+            <p className="text-xs text-muted mt-0.5">
+              {[contactPrincipal.Telephone, contactPrincipal.Email].filter(Boolean).join("  ·  ") || "Aucune coordonnée"}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Section Membres */}
