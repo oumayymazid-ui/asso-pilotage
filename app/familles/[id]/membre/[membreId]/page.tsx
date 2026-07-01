@@ -273,7 +273,6 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       Niveau:              derniere?.Niveau ?? "",
       Disponibilite:       derniere?.Disponibilite ?? "",
       Orientation:         derniere?.Orientation ?? "",
-      Beneficiaire:        derniere?.Beneficiaire ?? "",
       Montant_Adhesion:    derniere?.Montant_Adhesion ?? "",
       Montant_Inscription: derniere?.Montant_Inscription ?? "30",
     })
@@ -760,7 +759,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-muted">Bénéficiaire</span>
-                <span className="text-xs font-medium text-foreground">{inscEditing.Beneficiaire || "—"}</span>
+                <span className="text-xs font-medium text-foreground">{membre.Beneficiaire || "—"}</span>
               </div>
             </div>
           )}
