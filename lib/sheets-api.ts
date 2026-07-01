@@ -32,6 +32,12 @@ export interface MembreSheet {
   Date_Inscription?: string
   Nb_Enfants: number | string
   Notes: string
+  // Champs d'inscription (payload de création uniquement, quand Beneficiaire === "Oui")
+  Annee_Scolaire?: string
+  Disponibilite?: string
+  Montant_Adhesion?: string | number
+  Montant_Inscription?: string | number
+  Remarques?: string
 }
 
 export interface FamilleSheet {

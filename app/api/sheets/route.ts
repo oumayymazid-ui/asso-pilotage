@@ -373,19 +373,24 @@ async function addMembre(sheets: Sheets, data: Record<string, unknown>) {
     "Commentaire": data.Notes ?? "",
   })
 
-  if (data.Niveau || data.Statut_Inscription || data.Date_Inscription) {
+  // Une inscription n'est créée que si la personne est bénéficiaire.
+  // Statut, Type apprenant et Date d'inscription sont déterminés automatiquement.
+  if (String(data.Beneficiaire) === "Oui") {
     const inscId = await nextId(sheets, "INSCRIPTION")
+    const isEnfant = String(data.Role) === "Enfant"
     await appendRow(sheets, "INSCRIPTION", {
       "ID": inscId,
       "Personne ID": id,
       "Annee scolaire": data.Annee_Scolaire ?? "",
-      "Type apprenant": data.Type_Apprenant ?? "",
-      "Statut": data.Statut_Inscription ?? "",
-      "Niveau / Classe": data.Niveau ?? "",
+      "Type apprenant": isEnfant ? "Soutien scolaire" : "FLE",
+      "Statut": "En cours",
+      "Niveau / Classe": isEnfant ? (data.Niveau ?? "") : "",
+      "Disponibilite": data.Disponibilite ?? "",
       "Orientation": data.Source_Orientation ?? "",
-      "Date d'inscription": data.Date_Inscription
-        ? parseDateFr(String(data.Date_Inscription))
-        : new Date().toISOString().split("T")[0],
+      "Date d'inscription": new Date().toISOString().split("T")[0],
+      "Montant adhesion": data.Montant_Adhesion ?? "",
+      "Montant d'inscription": data.Montant_Inscription ?? "",
+      "Remarques": data.Remarques ?? "",
     })
   }
 
