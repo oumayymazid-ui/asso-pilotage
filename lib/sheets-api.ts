@@ -188,6 +188,31 @@ export async function updateInscription(idInscription: string, data: Partial<Ins
   return apiPost({ action: "updateInscription", idInscription, data }) as Promise<{ ok: boolean }>
 }
 
+// ── Upload de fichier (Drive) ───────────────────
+export async function uploadFichier(data: {
+  idMembre?: string
+  categorie?: string
+  nom: string
+  mimeType: string
+  dataBase64: string
+}): Promise<{ ok: boolean; url: string; fileId: string }> {
+  return apiPost({ action: "uploadFichier", ...data }) as Promise<{ ok: boolean; url: string; fileId: string }>
+}
+
+export interface DocumentJoint {
+  ID_Doc: string
+  URL: string
+  Categorie: string
+}
+
+export async function fetchDocuments(idMembre: string): Promise<DocumentJoint[]> {
+  return apiGet("getDocuments", { idMembre }) as Promise<DocumentJoint[]>
+}
+
+export async function deleteDocument(idDoc: string): Promise<{ ok: boolean }> {
+  return apiPost({ action: "deleteDocument", idDoc }) as Promise<{ ok: boolean }>
+}
+
 // ── Indicateur de configuration ────────────────
 export function isApiConfigured(): boolean {
   return !!API_URL

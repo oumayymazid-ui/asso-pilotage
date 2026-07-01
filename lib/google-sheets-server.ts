@@ -13,6 +13,45 @@ export function getSheetsClient() {
   return google.sheets({ version: "v4", auth })
 }
 
+// Dossier Drive "fiches-inscription" (partagé avec le compte de service)
+export const FICHES_FOLDER_ID = "1E5KdJqdbkrnjJEMtk2NpW-1RJdB28SOX"
+
+function getDriveClient() {
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+    },
+    scopes: ["https://www.googleapis.com/auth/drive"],
+  })
+  return google.drive({ version: "v3", auth })
+}
+
+/** Supprime un fichier Drive (best-effort : peut échouer si le compte de service n'en est pas propriétaire). */
+export async function deleteDriveFile(fileId: string): Promise<void> {
+  const drive = getDriveClient()
+  await drive.files.delete({ fileId, supportsAllDrives: true })
+}
+
+/** Upload un fichier (base64) dans un dossier Drive donné. Renvoie le lien Drive. */
+export async function uploadToDrive(
+  nom: string,
+  mimeType: string,
+  base64: string,
+  folderId: string = FICHES_FOLDER_ID
+): Promise<{ fileId: string; url: string }> {
+  const drive = getDriveClient()
+  const { Readable } = await import("stream")
+  const buffer = Buffer.from(base64, "base64")
+  const res = await drive.files.create({
+    requestBody: { name: nom, parents: [folderId] },
+    media: { mimeType: mimeType || "application/octet-stream", body: Readable.from(buffer) },
+    fields: "id, webViewLink",
+    supportsAllDrives: true,
+  })
+  return { fileId: res.data.id ?? "", url: res.data.webViewLink ?? "" }
+}
+
 // ── Helpers génériques ────────────────────────────────────
 
 type Sheets = ReturnType<typeof google.sheets>
