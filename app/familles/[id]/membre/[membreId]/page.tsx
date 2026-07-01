@@ -47,6 +47,15 @@ const statutStyle: Record<string, string> = {
   "TERMINE":  "bg-slate-100 text-slate-600",
 }
 
+const NIVEAUX = ["Alpha", "A1-", "A1+", "A2-", "A2+/B1"]
+const TYPES_APPRENANT = ["Adulte", "Enfant"]
+
+/** Option supplémentaire si la valeur du Sheet ne figure pas dans la liste prédéfinie */
+function ExtraOption({ value, list }: { value: string; list: string[] }) {
+  if (!value || list.includes(value)) return null
+  return <option value={value}>{value}</option>
+}
+
 function getCurrentAnneeScolaire(): string {
   const now = new Date()
   const baseYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
@@ -649,6 +658,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
             <Field label="Type d'apprenant">
               <Select value={String(reinscForm.Type_Apprenant ?? "")} onChange={e => setReinscForm(f => ({ ...f, Type_Apprenant: e.target.value }))}>
                 <option value="">—</option>
+                <ExtraOption value={String(reinscForm.Type_Apprenant ?? "")} list={TYPES_APPRENANT} />
                 <option value="Adulte">Adulte</option>
                 <option value="Enfant">Enfant</option>
               </Select>
@@ -657,6 +667,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
           <Field label="Niveau">
             <Select value={String(reinscForm.Niveau ?? "")} onChange={e => setReinscForm(f => ({ ...f, Niveau: e.target.value }))}>
               <option value="">—</option>
+              <ExtraOption value={String(reinscForm.Niveau ?? "")} list={NIVEAUX} />
               <option value="Alpha">Alpha</option>
               <option value="A1-">A1-</option>
               <option value="A1+">A1+</option>
@@ -749,6 +760,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
             <Field label="Type d'apprenant">
               <Select value={inscForm.Type_Apprenant} onChange={e => setInscForm(f => ({ ...f, Type_Apprenant: e.target.value }))}>
                 <option value="">—</option>
+                <ExtraOption value={inscForm.Type_Apprenant} list={TYPES_APPRENANT} />
                 <option value="Adulte">Adulte</option>
                 <option value="Enfant">Enfant</option>
               </Select>
@@ -757,6 +769,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
           <Field label="Niveau">
             <Select value={inscForm.Niveau} onChange={e => setInscForm(f => ({ ...f, Niveau: e.target.value }))}>
               <option value="">—</option>
+              <ExtraOption value={inscForm.Niveau} list={NIVEAUX} />
               <option value="Alpha">Alpha</option>
               <option value="A1-">A1-</option>
               <option value="A1+">A1+</option>
