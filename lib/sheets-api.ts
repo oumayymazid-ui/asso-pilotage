@@ -62,6 +62,7 @@ export interface InscriptionSheet {
   Beneficiaire: string
   Montant_Adhesion: string | number
   Montant_Du?: string | number
+  Statut_Paiement?: string
   Remarques: string
 }
 

@@ -477,6 +477,10 @@ async function updateInscription(sheets: Sheets, idInscription: string, data: Re
     await ensureColumn(sheets, "INSCRIPTION", "Montant du")
     map["Montant du"] = data.Montant_Du
   }
+  if (data.Statut_Paiement !== undefined) {
+    await ensureColumn(sheets, "INSCRIPTION", "Statut paiement")
+    map["Statut paiement"] = data.Statut_Paiement
+  }
   if (data.Montant_Adhesion !== undefined) map["Montant adhesion"] = data.Montant_Adhesion
   if (data.Statut !== undefined)           map["Statut"] = data.Statut
   if (data.Niveau !== undefined)           map["Niveau / Classe"] = data.Niveau
@@ -625,6 +629,7 @@ function mapInscription(i: Record<string, unknown>) {
     Beneficiaire: i["Beneficiaire"],
     Montant_Adhesion: i["Montant adhesion"],
     Montant_Du: i["Montant du"] !== undefined && i["Montant du"] !== "" ? i["Montant du"] : "",
+    Statut_Paiement: i["Statut paiement"] ?? "",
     Remarques: i["Remarques"],
   }
 }

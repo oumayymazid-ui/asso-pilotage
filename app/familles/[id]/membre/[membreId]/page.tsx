@@ -99,6 +99,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [payForm, setPayForm]   = useState<Partial<PaiementSheet>>({})
   const [editAttenduId, setEditAttenduId] = useState<string | null>(null)
   const [attenduDraft, setAttenduDraft] = useState("")
+  const [editStatutId, setEditStatutId] = useState<string | null>(null)
   const [docOpen, setDocOpen]   = useState(false)
   const [docType, setDocType]   = useState("")
   const [docFile, setDocFile]   = useState<File | null>(null)
@@ -180,6 +181,12 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     await updateInscription(idInscription, { Montant_Du: attenduDraft })
     await loadData()
     setEditAttenduId(null)
+  }
+
+  async function handleSaveStatut(idInscription: string, value: string) {
+    await updateInscription(idInscription, { Statut_Paiement: value })
+    await loadData()
+    setEditStatutId(null)
   }
 
   function openDocument() {
@@ -363,15 +370,39 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
               const attendu = Number(insc.Montant_Du) || 0
               const reste = attendu - paye
               const enEdition = editAttenduId === insc.ID_Inscription
+              const statutManuel = String(insc.Statut_Paiement ?? "")
               return (
                 <div key={insc.ID_Inscription} className="rounded-lg border border-border p-4">
-                  {/* En-tête : année + statut reste dû */}
+                  {/* En-tête : année + statut de paiement (calculé ou manuel, éditable) */}
                   <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
                     <p className="text-sm font-semibold text-foreground">{insc.Annee_Scolaire || "Inscription"}</p>
-                    {attenduDefini && (
-                      reste > 0
-                        ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-absences-light text-absences-dark">Reste dû {reste} €</span>
-                        : <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-finances-light text-finances-dark">Soldé</span>
+                    {editStatutId === insc.ID_Inscription ? (
+                      <select
+                        value={statutManuel}
+                        autoFocus
+                        onChange={e => handleSaveStatut(insc.ID_Inscription, e.target.value)}
+                        className="text-xs px-2 py-1 rounded-lg border border-border bg-surface"
+                      >
+                        <option value="">Automatique (selon paiements)</option>
+                        <option value="Exonéré">Exonéré(e)</option>
+                        <option value="Report">Report de paiement</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {statutManuel === "Exonéré" ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-communication-light text-communication-dark">Exonéré(e)</span>
+                        ) : statutManuel === "Report" ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-ateliers-light text-ateliers-dark">Report de paiement</span>
+                        ) : attenduDefini ? (
+                          reste > 0
+                            ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-absences-light text-absences-dark">Reste dû {reste} €</span>
+                            : <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-finances-light text-finances-dark">Soldé</span>
+                        ) : (
+                          <span className="text-xs text-muted italic">Statut à définir</span>
+                        )}
+                        <button onClick={() => setEditStatutId(insc.ID_Inscription)} aria-label="Modifier le statut de paiement" title="Modifier le statut"
+                          className="text-familles-dark"><Pencil size={12} /></button>
+                      </div>
                     )}
                   </div>
 
