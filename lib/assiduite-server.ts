@@ -1,22 +1,18 @@
 // ──────────────────────────────────────────────────────────────
-// lib/sheets-server.ts — Lecture du Google Sheet côté SERVEUR uniquement.
+// lib/assiduite-server.ts — Agrégation des données d'assiduité
+// (lecture Google Sheet), côté SERVEUR uniquement.
 //
-// ⚠️ Ne JAMAIS importer ce module dans un composant client :
-//    il lit la clé privée (GOOGLE_PRIVATE_KEY) depuis process.env.
+// ⚠️ Ne JAMAIS importer dans un composant client : accède aux
+//    credentials du compte de service via getSheetsClient().
 //    Utilisé exclusivement par la route serveur app/api/assiduite.
 //
-// Auth : JWT compte de service -> access token (aucune dépendance externe).
+// L'auth + le client Sheets sont RÉUTILISÉS depuis google-sheets-server
+// (même compte de service, même Sheet BDD_Asso_CRM que le module Familles).
+// Ce fichier ne contient que le mapping propre au Hub Assiduité.
 // ──────────────────────────────────────────────────────────────
-import crypto from "node:crypto"
+import { getSheetsClient, SPREADSHEET_ID } from "@/lib/google-sheets-server"
 
-const SHEET_ID = process.env.GOOGLE_SHEET_ID
-const SA_EMAIL = process.env.GOOGLE_CLIENT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-const SA_KEY_RAW = process.env.GOOGLE_PRIVATE_KEY
-
-// ── Utils ─────────────────────────────────────────────────────
-const b64url = (buf: string | Buffer) =>
-  Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
-
+// ── Utils de mapping ──────────────────────────────────────────
 const norm = (s: unknown) =>
   String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
 
@@ -32,54 +28,15 @@ function toISODate(v: string): string {
 // "14:00:00" -> "14:00"
 const toHHMM = (v: string) => String(v ?? "").trim().slice(0, 5)
 
-// ── Auth ──────────────────────────────────────────────────────
-async function getAccessToken(): Promise<string> {
-  if (!SHEET_ID || !SA_EMAIL || !SA_KEY_RAW)
-    throw new Error("Credentials Google manquants (GOOGLE_SHEET_ID / GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY).")
-  const key = SA_KEY_RAW.replace(/\\n/g, "\n")
-  const now = Math.floor(Date.now() / 1000)
-  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }))
-  const claim = b64url(JSON.stringify({
-    iss: SA_EMAIL,
-    scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
-  }))
-  const input = `${header}.${claim}`
-  const signature = b64url(crypto.sign("RSA-SHA256", Buffer.from(input), key))
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: `${input}.${signature}`,
-    }),
-  })
-  const json = await res.json()
-  if (!res.ok) throw new Error(`Auth Google échouée : ${JSON.stringify(json)}`)
-  return json.access_token as string
-}
-
-// Lit plusieurs onglets en UNE seule requête (économise le quota Sheets :
-// 60 lectures/min/utilisateur). Renvoie les valeurs dans l'ordre demandé.
-async function batchGet(token: string, titles: string[]): Promise<string[][][]> {
-  const ranges = titles.map((t) => `ranges=${encodeURIComponent(a1(t))}`).join("&")
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?${ranges}&majorDimension=ROWS`
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-  const json = await res.json()
-  if (!res.ok) throw new Error(`Lecture Sheet échouée : ${JSON.stringify(json)}`)
-  return ((json.valueRanges ?? []) as { values?: string[][] }[]).map((vr) => vr.values ?? [])
-}
-
-// Transforme une plage en tableau d'objets indexés par entête normalisée
-function toObjects(values: string[][]): Record<string, string>[] {
+// Transforme une plage en tableau d'objets indexés par entête NORMALISÉE
+// (accents/casse ignorés) — le mapping ci-dessous s'appuie sur ces clés.
+function toObjects(values: unknown[][]): Record<string, string>[] {
   const headers = (values[0] ?? []).map(norm)
   return values.slice(1)
-    .filter((r) => r.some((c) => String(c).trim() !== ""))
+    .filter((r) => r.some((c) => String(c ?? "").trim() !== ""))
     .map((row) => {
       const o: Record<string, string> = {}
-      headers.forEach((h, i) => { o[h] = row[i] ?? "" })
+      headers.forEach((h, i) => { o[h] = String(row[i] ?? "") })
       return o
     })
 }
@@ -107,18 +64,29 @@ function normEtat(v: string): PresenceStatus {
   return "présent"
 }
 
-// ── Lecture + mapping complet ─────────────────────────────────
-export async function fetchAssiduiteData(): Promise<AssiduiteData> {
-  const token = await getAccessToken()
-  const [evRows, persRows, inscRows, assRows, intRows] = await batchGet(token, [
-    "EVENEMENT", "PERSONNE", "INSCRIPTION", "ASSIDUITE", "INTERVENANT",
-  ])
+// ── Cache mémoire court ───────────────────────────────────────
+// Évite un appel Sheets à chaque visite (quota 60 lectures/min/utilisateur).
+// TTL volontairement court : les données restent quasi temps réel.
+const TTL_MS = 60_000
+let cache: { at: number; data: AssiduiteData } | null = null
 
-  const evenements = toObjects(evRows)
-  const personnes = toObjects(persRows)
-  const inscriptions = toObjects(inscRows)
-  const assiduite = toObjects(assRows)
-  const intervenants = toObjects(intRows)
+// ── Lecture + mapping complet ─────────────────────────────────
+async function readAssiduiteData(): Promise<AssiduiteData> {
+  const sheets = getSheetsClient()
+  // 1 seule requête batch pour les 5 onglets (économise le quota Sheets).
+  const res = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: SPREADSHEET_ID,
+    ranges: ["EVENEMENT", "PERSONNE", "INSCRIPTION", "ASSIDUITE", "INTERVENANT"].map(a1),
+    majorDimension: "ROWS",
+  })
+  const vr = res.data.valueRanges ?? []
+  const rowsAt = (i: number) => (vr[i]?.values ?? []) as unknown[][]
+
+  const evenements  = toObjects(rowsAt(0))
+  const personnes   = toObjects(rowsAt(1))
+  const inscriptions = toObjects(rowsAt(2))
+  const assiduite   = toObjects(rowsAt(3))
+  const intervenants = toObjects(rowsAt(4))
 
   // Intervenants : id -> "Prenom Nom"
   const intName = new Map<string, string>()
@@ -128,7 +96,7 @@ export async function fetchAssiduiteData(): Promise<AssiduiteData> {
   const persName = new Map<string, { prenom: string; nom: string }>()
   for (const p of personnes) persName.set(String(p["id"]), { prenom: p["prenom"] ?? "", nom: p["nom"] ?? "" })
 
-  // Inscription retenue par personne : "En cours" prioritaire, sinon la dernière vue
+  // Inscription retenue par personne : "En cours" prioritaire, sinon la 1re vue
   const inscByPers = new Map<string, { niveau: string; statut: string }>()
   for (const ins of inscriptions) {
     const pid = String(ins["personne id"])
@@ -182,4 +150,13 @@ export async function fetchAssiduiteData(): Promise<AssiduiteData> {
   })
 
   return { sessions, beneficiaires, presences }
+}
+
+/** Données d'assiduité avec cache mémoire (TTL 60 s). */
+export async function fetchAssiduiteData(): Promise<AssiduiteData> {
+  const now = Date.now()
+  if (cache && now - cache.at < TTL_MS) return cache.data
+  const data = await readAssiduiteData()
+  cache = { at: now, data }
+  return data
 }

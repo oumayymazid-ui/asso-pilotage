@@ -6,10 +6,10 @@
 //    service. Aucun secret n'est envoyé au client (voir ADR 004).
 // ──────────────────────────────────────────────────────────────
 import { NextResponse } from "next/server"
-import { fetchAssiduiteData } from "@/lib/sheets-server"
+import { fetchAssiduiteData } from "@/lib/assiduite-server"
 
-export const runtime = "nodejs"       // node:crypto requis
-export const dynamic = "force-dynamic" // pas de cache : données live
+export const runtime = "nodejs"        // googleapis requiert Node
+export const dynamic = "force-dynamic" // rendu dynamique ; cache court géré dans la lib (TTL 60 s)
 
 export async function GET() {
   try {
