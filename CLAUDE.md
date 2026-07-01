@@ -18,7 +18,7 @@ Persistance : `localStorage` pour la plupart des modules. **Exception : le modul
 | React | 19 | Server Components + `"use client"` explicite |
 | TypeScript | 5 | `strict: true` |
 | lucide-react | 1.16.0 | Certaines icônes n'existent pas — voir liste dans `AGENTS.md` |
-| @anthropic-ai/sdk | ^0.97.1 | Génération IA posts Communication — clé dans `.env.local` |
+| Gemini API | `fetch` natif (pas de SDK npm) | Génération IA posts Communication + OCR — clé `GEMINI_API_KEY` dans `.env.local` |
 
 ## Structure des modules
 
@@ -53,8 +53,8 @@ lib/
 └── google-sheets-server.ts  Clients Sheets + Drive (compte de service, côté serveur)
 
 app/api/
-├── generate-post/route.ts  POST — génère contenu + hashtags via Claude (Anthropic SDK)
-│                            Requiert ANTHROPIC_API_KEY dans .env.local
+├── generate-post/route.ts  POST — génère contenu + hashtags via Gemini (fetch natif)
+│                            Requiert GEMINI_API_KEY dans .env.local
 └── sheets/route.ts     API REST Google Sheets v4 du module Familles (voir "Backend Familles")
 ```
 
@@ -132,16 +132,19 @@ Toutes les pages sont `"use client"` (localStorage, état, hooks).
 Les composants partagés aussi (`Sidebar`, `SlideOver`, `AuthGate`).
 Pas de Server Actions. Le module Familles appelle sa **route interne `/api/sheets`** (API REST Google Sheets v4, voir "Backend Familles") ; les autres modules restent en localStorage.
 
-## Modèle Post (Communication)
+## Modèle Post (Communication) — **Google Sheets** (feuille `CONTENUS`)
+
+> ⚠️ Depuis la migration Sheets, les posts ne sont plus en `localStorage`. Le module Communication
+> lit/écrit dans la feuille `CONTENUS` du Sheet `BDD_Asso_CRM` via `/api/sheets` (voir "Backend
+> Communication" plus bas). Seul `asso-communication-rejected` (le repère visuel "dot rouge") reste
+> en `localStorage` — c'est une annotation UI locale, pas une donnée métier.
 
 ```typescript
-// ⚠️ "en attente de validation" a été renommé "à valider" (branche Cas_4-1-2)
-// Migration auto localStorage au chargement — voir useEffect dans communication/page.tsx
 type ValidationStatus = "brouillon" | "à valider" | "validé" | "publié"
 type CategoriePost = "atelier" | "autre"
 
 interface PlatformeContent { contenu?: string; tags?: string; lien?: string }
-interface MediaItem { nom: string; type: string; preview?: string }
+interface MediaItem { nom: string; type: string; preview?: string; url?: string }  // preview = local (upload en cours), url = Drive persistée
 interface PostParticipant { id: number; prenom: string; nom: string }
 interface PostParticipants {
   apprenantes: PostParticipant[]   // IDs → cross-ref avec asso-beneficiaires
@@ -156,12 +159,11 @@ interface Post {
   titre: string
   brief?: string                     // contexte court pour la génération IA (posts "autre")
   contenu?: string                   // contenu principal
-  media?: MediaItem[]                // images (dataURL) ou vidéos (nom uniquement)
+  media?: MediaItem[]                // 1 image + 1 vidéo max (colonnes Image/Vidéo singulières du Sheet)
   plateforme: Plateforme[]           // LinkedIn | Instagram | Facebook
   plateformeContenu: Partial<Record<Plateforme, PlatformeContent>>  // surcharge par plateforme
   statut: ValidationStatus
   auteur: string
-  evenement?: string | null          // ⚠️ deprecated UI — champ conservé pour compat localStorage
   sessionId?: number | null          // lien optionnel vers une Session du module Ateliers
   participants?: PostParticipants    // uniquement pour categorie === "atelier"
 }
@@ -176,8 +178,6 @@ interface Post {
 Tant qu'il n'est pas configuré, la liste de floutage affiche un message d'alerte et ne liste personne.
 
 **Kanban :** clic sur une carte ouvre directement l'édition (pas de panneau de lecture intermédiaire).
-
-Webhook Zapier : déclenché sur `"validé"` ou `"publié"`.
 
 ## Page de seed de test (à supprimer avant prod)
 
@@ -244,28 +244,26 @@ IDs réservés : 9001–9099. Supprimer ce fichier + le dossier `app/dev/` avant
 ### Structure fichiers
 ```
 app/communication/
-├── page.tsx        Page principale : calendrier, onglet Suivi (kanban), intégrations
+├── page.tsx        Page principale : calendrier, onglet Suivi (kanban)
 └── publies/
     └── page.tsx    Archive de tous les posts publiés (lecture seule + SlideOver)
 ```
 
-### Clés localStorage — Communication
-| Clé | Type | Contenu |
+### Persistance — Communication
+| Clé / Source | Type | Contenu |
 |-----|------|---------|
-| `asso-communication-posts` | `Post[]` | Tous les posts |
-| `asso-communication-rejected` | `number[]` | IDs posts repassés en brouillon via ✕ |
-| `asso-communication-integrations` | `IntegrationsConfig` | Config webhook Zapier |
+| Feuille `CONTENUS` (Google Sheets) | `Post[]` | Tous les posts — voir "Backend Communication" ci-dessous |
+| `asso-communication-rejected` (localStorage) | `number[]` | IDs posts repassés en brouillon via ✕ (annotation UI locale, pas dans Sheets) |
 
 ### Onglets de la page Communication
 1. **Calendrier** — posts uniquement, fond coloré par statut, clic sur une date = nouveau post
 2. **Suivi** — kanban 4 colonnes : Brouillon / À valider / Validé / Publié
-3. **Intégrations** — webhook Zapier/Make
 
 > ⚠️ L'onglet **Événements** a été entièrement supprimé (Cas_4-1-2).
 > Toute l'infrastructure associée a été retirée : type `Evenement`, `TypeEvenement`,
 > `EventsTab`, `STORAGE_EVENTS`, `eventsInitiaux`, `emptyEvent`, `TYPE_OPTIONS`.
-> Le champ `evenement` reste dans l'interface `Post` pour compatibilité localStorage
-> mais n'est plus affiché ni éditable.
+> Le champ `evenement` (déprécié) a depuis été retiré entièrement de l'interface `Post`
+> lors de la migration vers Google Sheets.
 
 ### Modifications réalisées en Cas_4-1-2
 
@@ -551,5 +549,34 @@ GEMINI_API_KEY=...                                    # OCR bulletins d'inscript
 - `calculerAge(dateStr)` — âge depuis une date `JJ/MM/AAAA`
 - `getStatut(statut)` — normalise vers `EN COURS` / `ARRÊTÉ` / `SUSPENDU`
 
-> Le reste de l'app (dashboard, communication, absences, ateliers, bénévoles, membres…)
-> reste en **localStorage** — seul Familles est passé sur Google Sheets.
+> Le reste de l'app (dashboard, absences, ateliers, bénévoles, membres…)
+> reste en **localStorage** — Familles et Communication sont passés sur Google Sheets/Drive.
+
+---
+
+## Backend Communication — feuille `CONTENUS` + Drive médias (implémenté)
+
+Même architecture que Familles (`/api/sheets`, compte de service), appliquée aux posts.
+
+### Feuille `CONTENUS` du Sheet `BDD_Asso_CRM`
+Colonnes d'origine : `ID | Titre | Contenu principal | Image | Vidéo | Tags | État  | Date programmée | Plateforme RS | Catégorie  | Event ID`
+(⚠️ `État ` et `Catégorie ` ont un espace final dans le Sheet — à respecter exactement dans le code).
+
+Colonnes ajoutées via `ensureColumns` (créées automatiquement au premier `addPost`/`updatePost`) pour couvrir la richesse de l'app : `Auteur`, `Brief`, `Plateforme Contenu` (JSON du `plateformeContenu` par réseau), `Participants` (JSON, posts "atelier" uniquement), `Session ID`.
+
+`Event ID` n'est **pas utilisé** par l'app (concept distinct de la feuille `EVENEMENT`, non branché sur les sessions Ateliers) — laissé vide intentionnellement.
+
+### Médias (Image / Vidéo)
+- **Une image + une vidéo max par post** (colonnes singulières) — un nouvel ajout du même type remplace le précédent dans le formulaire.
+- Upload : `uploadToDrive(nom, mimeType, base64, COMMUNICATION_MEDIA_FOLDER_ID)` puis `makeFilePublic(fileId)` (contrairement aux documents Familles, les médias de posts sont rendus **publics par lien** — nécessaire pour l'aperçu inline dans `PostPreviewCard`, et sans risque car destinés à être publiés).
+- `COMMUNICATION_MEDIA_FOLDER_ID` (`lib/google-sheets-server.ts`) : dossier Drive dédié, à partager manuellement en Éditeur avec le compte de service (le compte de service n'est pas membre du Drive partagé existant, donc ne peut pas y créer de dossier lui-même).
+- Suppression best-effort du fichier Drive à la suppression d'un post (`deletePost`, extraction du `fileId` depuis l'URL `?id=...`).
+
+### Fichiers clés
+| Fichier | Rôle |
+|---|---|
+| `lib/sheets-api.ts` | `fetchPosts`, `addPost`, `updatePost`, `deletePost`, `uploadPostMedia` |
+| `app/api/sheets/route.ts` | Actions `getPosts`/`addPost`/`updatePost`/`deletePost`/`uploadPostMedia`, mapping `rowToPost`/`postWriteMap` |
+| `lib/google-sheets-server.ts` | `ensureColumns` (ajout de plusieurs colonnes en 1 lecture), `COMMUNICATION_MEDIA_FOLDER_ID` |
+
+> `asso-communication-rejected` reste en `localStorage` (annotation UI, pas une donnée métier — voir section Communication).

@@ -1,11 +1,12 @@
-import Anthropic from "@anthropic-ai/sdk"
 import { NextResponse } from "next/server"
 import { getServerUser } from "@/lib/supabase/server"
 
 // POST /api/generate-post
-// Génère le contenu d'un post réseaux sociaux via Claude
+// Génère le contenu d'un post réseaux sociaux via Gemini
 // Body : GeneratePostRequest
 // Response : GeneratePostResponse
+
+const GEMINI_MODEL = "gemini-2.5-flash"
 
 interface Participant {
   prenom: string
@@ -71,10 +72,10 @@ export async function POST(request: Request) {
   if (!(await getServerUser())) {
     return NextResponse.json({ error: "Non authentifié." }, { status: 401 })
   }
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey || apiKey.startsWith("sk-ant-VOTRE")) {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY non configurée. Ajoutez votre clé dans .env.local." },
+      { error: "GEMINI_API_KEY non configurée. Ajoutez votre clé dans .env.local." },
       { status: 500 }
     )
   }
@@ -90,23 +91,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Champs requis manquants (titre, categorie, plateformes)." }, { status: 400 })
   }
 
-  const client = new Anthropic({ apiKey })
   const prompt = buildPrompt(body)
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json" },
+  }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`
 
   try {
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 512,
-      messages: [{ role: "user", content: prompt }],
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     })
 
-    const rawText = message.content[0].type === "text" ? message.content[0].text : ""
+    if (!res.ok) {
+      const err = await res.text()
+      return NextResponse.json({ error: `Erreur Gemini ${res.status} : ${err}` }, { status: 502 })
+    }
 
-    // Parse the JSON response
+    const result = await res.json()
+    const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!rawText) return NextResponse.json({ error: "Erreur Gemini : réponse vide" }, { status: 502 })
+
     const parsed: GeneratePostResponse = JSON.parse(rawText)
     return NextResponse.json(parsed)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Erreur inconnue"
-    return NextResponse.json({ error: `Erreur Claude : ${msg}` }, { status: 500 })
+    return NextResponse.json({ error: `Erreur Gemini : ${msg}` }, { status: 500 })
   }
 }

@@ -219,6 +219,60 @@ export async function deleteDocument(idDoc: string): Promise<{ ok: boolean }> {
   return apiPost({ action: "deleteDocument", idDoc }) as Promise<{ ok: boolean }>
 }
 
+// ── CONTENUS (Communication) ───────────────────
+
+export interface PostMedia {
+  nom: string
+  type: string
+  url?: string
+}
+
+export interface PostParticipantsSheet {
+  apprenantes: { id: number; prenom: string; nom: string }[]
+  benevoles: string[]
+  formatrices: string[]
+}
+
+export interface PostSheet {
+  id: number
+  categorie: string
+  date: string
+  titre: string
+  brief?: string
+  contenu?: string
+  media: PostMedia[]
+  plateforme: string[]
+  plateformeContenu: Record<string, { contenu?: string; tags?: string; lien?: string }>
+  statut: string
+  auteur: string
+  sessionId: number | null
+  participants?: PostParticipantsSheet
+}
+
+export async function fetchPosts(): Promise<PostSheet[]> {
+  return apiGet("getPosts") as Promise<PostSheet[]>
+}
+
+export async function addPost(data: Record<string, unknown>): Promise<{ ok: boolean; id: number }> {
+  return apiPost({ action: "addPost", data }) as Promise<{ ok: boolean; id: number }>
+}
+
+export async function updatePost(id: number, data: Record<string, unknown>): Promise<{ ok: boolean }> {
+  return apiPost({ action: "updatePost", id, data }) as Promise<{ ok: boolean }>
+}
+
+export async function deletePost(id: number): Promise<{ ok: boolean }> {
+  return apiPost({ action: "deletePost", id }) as Promise<{ ok: boolean }>
+}
+
+export async function uploadPostMedia(data: {
+  nom: string
+  mimeType: string
+  dataBase64: string
+}): Promise<{ ok: boolean; url: string; fileId: string }> {
+  return apiPost({ action: "uploadPostMedia", ...data }) as Promise<{ ok: boolean; url: string; fileId: string }>
+}
+
 // ── Indicateur de configuration ────────────────
 export function isApiConfigured(): boolean {
   return !!API_URL

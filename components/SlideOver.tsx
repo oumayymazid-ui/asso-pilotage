@@ -9,7 +9,7 @@ interface SlideOverProps {
   title: string
   subtitle?: string
   children: React.ReactNode
-  width?: "sm" | "md" | "lg"
+  width?: "sm" | "md" | "lg" | "xl"
 }
 
 export default function SlideOver({ open, onClose, title, subtitle, children, width = "md" }: SlideOverProps) {
@@ -36,7 +36,7 @@ export default function SlideOver({ open, onClose, title, subtitle, children, wi
     return () => document.removeEventListener("keydown", handleKey)
   }, [open, onClose])
 
-  const widthClass = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg" }[width]
+  const widthClass = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-4xl" }[width]
 
   return (
     <>
@@ -124,12 +124,13 @@ export function FormRow({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-3">{children}</div>
 }
 
-export function SaveButton({ onClick, label = "Enregistrer" }: { onClick?: () => void; label?: string }) {
+export function SaveButton({ onClick, label = "Enregistrer", disabled }: { onClick?: () => void; label?: string; disabled?: boolean }) {
   return (
     <button
       type="submit"
       onClick={onClick}
-      className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-700 transition-colors mt-2"
+      disabled={disabled}
+      className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-700 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {label}
     </button>

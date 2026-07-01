@@ -38,17 +38,17 @@ Il centralise :
 | Framework | Next.js 16 (App Router) |
 | UI | Tailwind CSS v4, lucide-react |
 | Authentification | **Supabase Auth** (comptes réels, sessions serveur) |
-| Persistance données | **Hybride** : Google Sheets (Familles, Assiduité) + `localStorage` (autres modules) |
-| Documents | Google Drive (pièces jointes des fiches membres) |
-| IA | Anthropic (génération de posts) · Google Gemini (OCR bulletins) |
+| Persistance données | **Hybride** : Google Sheets (Familles, Assiduité, Communication) + `localStorage` (autres modules) |
+| Documents / Médias | Google Drive (pièces jointes des fiches membres + images/vidéos des posts) |
+| IA | Google Gemini (génération de posts + OCR bulletins) |
 | Hébergement | Vercel (déploiement automatique) |
 | Dépôt | github.com/anais0210/asso-pilotage |
 | URL production | asso-inky.vercel.app |
 
 > **Important — où vivent les données :**
 > - **Authentification** : Supabase (comptes partagés, vérifiés côté serveur).
-> - **Familles & Assiduité** : Google Sheets `BDD_Asso_CRM` (données **partagées** entre tous les postes).
-> - **Autres modules** (dashboard, émargement, ateliers, finances, communication, membres) : `localStorage` du navigateur → **propres à chaque poste**, pas encore synchronisés (voir section 7).
+> - **Familles, Assiduité & Communication** : Google Sheets `BDD_Asso_CRM` (données **partagées** entre tous les postes). Images/vidéos des posts sur Google Drive.
+> - **Autres modules** (dashboard, émargement, ateliers, finances, membres) : `localStorage` du navigateur → **propres à chaque poste**, pas encore synchronisés (voir section 7).
 
 ---
 
@@ -90,16 +90,16 @@ Il centralise :
   - Bouton « Émarger » pour aller directement à la feuille de présence
 - **Groupes** : composition de groupes par niveau, âge ou mixte, import rapide dans une séance
 
-### Communication (`/communication`)
+### Communication (`/communication`) — **Google Sheets** (feuille CONTENUS)
 - **Calendrier éditorial** : vue mensuelle des posts planifiés, fond coloré par statut
 - **Suivi (Kanban)** : circuit **Brouillon → À valider → Validé → Publié**
   - Clic sur une carte → édition directe
   - Point rouge sur les posts repassés en brouillon depuis « à valider »
   - Colonne « Publié » limitée aux 3 plus récents + archive complète (`/communication/publies`)
-- **Intégrations réseaux sociaux** : webhook Zapier / Make (voir section 6)
-- Chaque post : catégorie (atelier / autre), titre, brief, contenu, médias, plateformes cibles avec personnalisation, date programmée, statut, auteur
+- Chaque post : catégorie (atelier / autre), titre, brief, contenu, une image et/ou une vidéo (**stockées sur Google Drive**), plateformes cibles avec personnalisation, date programmée, statut, auteur
 - Posts **atelier** : participants (apprenantes, bénévoles, formatrices) importables depuis une session Ateliers + liste automatique des personnes à flouter (droit à l'image)
-- **Génération IA** (bouton ✨) : contenu principal + variante et hashtags par plateforme via Claude (Anthropic)
+- **Aperçu visuel** du rendu par réseau social (LinkedIn/Instagram/Facebook) en direct dans le formulaire
+- **Génération IA** (bouton ✨) : contenu principal + variante et hashtags par plateforme via Gemini
 
 ### Membres (`/membres`)
 - Annuaire de l'équipe (salariées, bénévoles, coordinatrices)
@@ -168,8 +168,7 @@ Tout push sur la branche `main` déclenche un déploiement automatique sur Verce
 | `SUPABASE_SERVICE_ROLE_KEY` | Oui (gestion comptes) | **OUI** | Clé service_role Supabase — **jamais** en `NEXT_PUBLIC_` |
 | `GOOGLE_CLIENT_EMAIL` | Oui (Familles/Assiduité) | non | Compte de service Google (Sheets + Drive) |
 | `GOOGLE_PRIVATE_KEY` | Oui (Familles/Assiduité) | **OUI** | Clé privée du compte de service |
-| `ANTHROPIC_API_KEY` | Oui (génération IA posts) | **OUI** | Clé Anthropic — [console.anthropic.com](https://console.anthropic.com/) |
-| `GEMINI_API_KEY` | Oui (OCR bulletins) | **OUI** | Clé Google Gemini — sinon `/api/ocr` renvoie 500 |
+| `GEMINI_API_KEY` | Oui (génération IA posts + OCR bulletins) | **OUI** | Clé Google Gemini — obtenir sur [Google AI Studio](https://aistudio.google.com/) |
 | `GOOGLE_SHEET_ID` | Non | non | Requis uniquement par les scripts de seed (l'app utilise l'ID en dur) |
 
 > **En local** : créer un `.env.local` à la racine (voir `.env.example`). Ce fichier est ignoré par git (`.env*`, sauf `!.env.example`).
@@ -210,46 +209,29 @@ Voir section 3 (un compte par membre).
 
 ### Étape 5 — Saisir les données initiales
 - **Familles / Assiduité** : les données vivent dans Google Sheets (partagées) — pas de ressaisie par poste.
-- **Autres modules** (ateliers, finances, communication, membres) : encore en `localStorage` → à saisir sur chaque poste tant que la migration n'est pas généralisée (voir section 7).
-
-### Étape 6 — Configurer l'intégration réseaux sociaux (optionnel)
-Voir section 6.
+- **Autres modules** (ateliers, finances, membres) : encore en `localStorage` → à saisir sur chaque poste tant que la migration n'est pas généralisée (voir section 7).
 
 ---
 
 ## 6. Intégrations externes
 
-### 6.1 Réseaux sociaux — Zapier / Make (disponible)
+### 6.1 Google Sheets — REST API v4 (implémenté)
 
-Permet de publier automatiquement les posts approuvés sur LinkedIn, Instagram et Facebook.
+Les modules **Familles**, **Assiduité** et **Communication** lisent/écrivent directement dans le
+Google Sheet `BDD_Asso_CRM` via l'**API REST v4**, appelée **côté serveur** avec un **compte de
+service** (routes internes `/api/sheets` et `/api/assiduite`). Ce n'est pas Apps Script.
 
-**Configuration dans l'app** :
-1. `/communication` → onglet **Intégrations** → **Zapier / Make**
-2. Créer un compte Zapier (gratuit) ou Make (gratuit jusqu'à 1 000 ops/mois)
-3. Créer un Zap/scénario avec déclencheur **Webhook → Catch Hook**
-4. Copier l'URL du webhook dans l'app
-5. Connecter LinkedIn, Instagram for Business, Facebook Pages
-6. Choisir le déclencheur (post « validé » ou « publié ») et activer le toggle
-
-**Liens** : [zapier.com](https://zapier.com) · [make.com](https://make.com)
-
----
-
-### 6.2 Google Sheets — REST API v4 (implémenté)
-
-Les modules **Familles** et **Assiduité** lisent/écrivent directement dans le Google Sheet
-`BDD_Asso_CRM` via l'**API REST v4**, appelée **côté serveur** avec un **compte de service**
-(routes internes `/api/sheets` et `/api/assiduite`). Ce n'est pas Apps Script.
-
-- **Tables** : FAMILLE, PERSONNE, INSCRIPTION, PAIEMENT, EVALUATION, DOCUMENTS JOINTS, EVENEMENT, ASSIDUITE, INTERVENANT…
-- **Documents** : uploadés dans **Google Drive** (un dossier par catégorie), référencés dans la table DOCUMENTS JOINTS. Plafond ~4,5 Mo par upload (limite Vercel).
+- **Tables** : FAMILLE, PERSONNE, INSCRIPTION, PAIEMENT, EVALUATION, DOCUMENTS JOINTS, EVENEMENT, ASSIDUITE, INTERVENANT, **CONTENUS** (posts Communication)…
+- **Documents** (Familles) : uploadés dans **Google Drive** (un dossier par catégorie), référencés dans la table DOCUMENTS JOINTS.
+- **Médias de posts** (Communication) : une image + une vidéo par post, uploadées dans un dossier Drive dédié et rendues publiques par lien (pour l'aperçu inline), URL stockée directement dans la feuille CONTENUS.
+- ⚠️ Plafond ~4,5 Mo par upload (limite Vercel), pour les documents comme pour les médias.
 - **Prérequis** : compte de service en rôle **Éditeur** sur le Sheet et les dossiers Drive (voir section 5).
 
-> Détails : `CLAUDE.md` (section « Backend Familles ») et `lib/google-sheets-server.ts`.
+> Détails : `CLAUDE.md` (sections « Backend Familles » et « Backend Communication ») et `lib/google-sheets-server.ts`.
 
 ---
 
-### 6.3 Supabase — authentification (implémenté)
+### 6.2 Supabase — authentification (implémenté)
 
 Auth réelle (comptes, sessions cookie vérifiées côté serveur), qui remplace l'ancien
 système `localStorage`. Toutes les routes API sensibles sont protégées (401 si non
@@ -259,7 +241,7 @@ authentifié). Les rôles applicatifs vivent dans la table `profiles`.
 
 ---
 
-### 6.4 OCR bulletins — Google Gemini (implémenté)
+### 6.3 OCR bulletins — Google Gemini (implémenté)
 
 `POST /api/ocr` (authentifié) envoie un bulletin d'inscription PDF à **Gemini 2.5 Flash**
 et en extrait les champs (nom, prénom, date de naissance, téléphones, montant, date de
@@ -277,9 +259,8 @@ signature) pour pré-remplir le formulaire d'ajout de membre.
 
 | Limite | Impact | Piste |
 |---|---|---|
-| Modules hors Familles/Assiduité en `localStorage` | Pas de partage entre postes (ateliers, finances, communication, membres) | Étendre le backend partagé (Sheets/Supabase) |
+| Modules hors Familles/Assiduité/Communication en `localStorage` | Pas de partage entre postes (ateliers, finances, membres) | Étendre le backend partagé (Sheets/Supabase) |
 | Pas de notifications | Alertes visibles seulement à la connexion | Notifications (email / Realtime) |
-| Publication réseaux sociaux via Zapier | Dépendance service tiers | Publication directe |
 | Upload documents plafonné (~4,5 Mo) | Gros PDF refusés | Upload direct vers Drive/Storage |
 
 ### Fonctionnalités prévues
@@ -287,7 +268,7 @@ signature) pour pré-remplir le formulaire d'ajout de membre.
 - [ ] Étendre le stockage partagé aux modules encore en `localStorage`
 - [ ] Notifications par email (absences, deadlines)
 - [ ] Authentification renforcée (2FA)
-- [ ] Publication directe réseaux sociaux (sans Zapier)
+- [ ] Publication directe réseaux sociaux
 - [x] Authentification serveur partagée (Supabase) ✅
 - [x] Familles & Assiduité connectés à Google Sheets ✅
 - [x] OCR des bulletins d'inscription (Gemini) ✅
@@ -316,7 +297,7 @@ signature) pour pré-remplir le formulaire d'ajout de membre.
 - Vérifier que `GEMINI_API_KEY` est bien configurée sur Vercel.
 
 **Données `localStorage` disparues** :
-- Les modules encore en `localStorage` (ateliers, finances, communication, membres) sont propres au navigateur : un cache vidé = données perdues sur ce poste. Familles et Assiduité, elles, sont dans Google Sheets.
+- Les modules encore en `localStorage` (ateliers, finances, membres) sont propres au navigateur : un cache vidé = données perdues sur ce poste. Familles, Assiduité et Communication, elles, sont dans Google Sheets.
 
 **Ajouter un·e utilisateur·rice** :
 - Seul·e un·e admin peut créer des comptes (page `/compte`).

@@ -2,7 +2,7 @@
 
 Dashboard de pilotage pour une association de formation numérique (Ada Tech School).
 **Next.js 16.2.6 · React 19 · Tailwind v4 · TypeScript**
-Auth **Supabase** · données **Google Sheets** (API REST v4 — Familles, Assiduité, **Ateliers**) + `localStorage` (autres modules) · IA **Anthropic** (posts) & **Gemini** (OCR bulletins)
+Auth **Supabase** · données **Google Sheets** (API REST v4 — Familles, Assiduité, **Ateliers**, Communication) + `localStorage` (autres modules) · IA **Gemini** (posts & OCR bulletins)
 
 🌐 **Production** : [asso-inky.vercel.app](https://asso-inky.vercel.app)
 📦 **Repo** : [github.com/anais0210/asso-pilotage](https://github.com/anais0210/asso-pilotage)
@@ -71,7 +71,7 @@ Pour comprendre pourquoi les choses sont faites ainsi.
 | Émargement | `/emargement` | Présences par séance |
 | Finances | `/finances` | Demandes de financement + inscriptions |
 | Ateliers | `/ateliers` | Planning, notes apprenantes, composition de groupes |
-| Communication | `/communication` | Calendrier éditorial + kanban (Brouillon → À valider → Validé → Publié) + génération IA (Claude) |
+| Communication | `/communication` | Calendrier éditorial + kanban (Brouillon → À valider → Validé → Publié) + génération IA (Gemini) |
 | Membres | `/membres` | Annuaire équipe |
 | Mon compte | `/compte` | Profil + mot de passe (+ **gestion des comptes** pour les admins) |
 

@@ -29,6 +29,9 @@ function getDriveClient() {
 
 export const POSITIONNEMENT_FOLDER_ID = "1VkfMr7hECZqKeSZhM7eIAbzCQ745yUUZ"
 
+// Dossier Drive "Communication - Médias" pour les images/vidéos des posts (module CONTENUS)
+export const COMMUNICATION_MEDIA_FOLDER_ID = "1yIGzxLSsdKmdc9N8Zdhkdiz10xdZdKY0"
+
 /** Rend un fichier Drive accessible publiquement (lecture) et retourne son URL de téléchargement direct. */
 export async function makeFilePublic(fileId: string): Promise<string> {
   const drive = getDriveClient()
@@ -104,13 +107,23 @@ export async function ensureColumn(
   sheetName: string,
   columnName: string
 ): Promise<void> {
+  return ensureColumns(sheets, sheetName, [columnName])
+}
+
+/** Ajoute plusieurs colonnes (en-têtes) manquantes en un seul appel (1 lecture + au plus 1 écriture). */
+export async function ensureColumns(
+  sheets: Sheets,
+  sheetName: string,
+  columnNames: string[]
+): Promise<void> {
   const headers = await getHeaders(sheets, sheetName)
-  if (headers.includes(columnName)) return
+  const missing = columnNames.filter((c) => !headers.includes(c))
+  if (!missing.length) return
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `${sheetName}!${colLetter(headers.length + 1)}1`,
     valueInputOption: "RAW",
-    requestBody: { values: [[columnName]] },
+    requestBody: { values: [missing] },
   })
 }
 

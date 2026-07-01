@@ -53,9 +53,7 @@ export default function ConfidentialitePage() {
         <ul className="list-disc pl-5 flex flex-col gap-1">
           <li><strong>Vercel</strong> — hébergement de l'application (États-Unis)</li>
           <li><strong>Supabase</strong> — authentification / comptes (région <Todo>région du projet Supabase</Todo>)</li>
-          <li><strong>Google</strong> — stockage des données (Sheets), documents (Drive) et lecture assistée des bulletins (Gemini)</li>
-          <li><strong>Anthropic</strong> — aide à la rédaction de publications (le cas échéant, prénoms des participantes)</li>
-          <li><strong>Zapier / Make</strong> — publication sur les réseaux sociaux (si activé)</li>
+          <li><strong>Google</strong> — stockage des données (Sheets), documents (Drive), lecture assistée des bulletins et aide à la rédaction de publications (Gemini)</li>
         </ul>
         <p>
           Certains prestataires étant situés <strong>hors Union européenne</strong>, les transferts

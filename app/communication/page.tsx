@@ -1,20 +1,23 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { benevoles as benevolesMock } from "@/lib/mock-data"
-import { Calendar, Columns3, Check, X, RotateCcw, Plus, Shuffle, CheckCircle2, XCircle, Users, ChevronRight } from "lucide-react"
+import { Calendar, Columns3, Check, X, RotateCcw, Plus, Users, ChevronRight, Heart, MessageCircle, Send, Bookmark, ThumbsUp, MoreHorizontal, Share2 } from "lucide-react"
 import SlideOver, { Field, Input, Textarea, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
+import { fetchPosts, addPost as apiAddPost, updatePost as apiUpdatePost, deletePost as apiDeletePost, uploadPostMedia } from "@/lib/sheets-api"
 
-const STORAGE_POSTS        = "asso-communication-posts"
 const STORAGE_REJECTED     = "asso-communication-rejected"
-const STORAGE_INTEGRATIONS = "asso-communication-integrations"
-const S_SESSIONS           = "asso-ateliers-sessions"
-const S_BENEFICIAIRES      = "asso-beneficiaires"
 
 function load<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback
   try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : fallback } catch { return fallback }
+}
+
+/** Convertit "14/03/2026" (format Sheet) en "2026-03-14" (parsable par Date). */
+function frToIso(d: string): string {
+  const m = (d ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : (d ?? "")
 }
 
 // ──────────────────────────────────────────────
@@ -33,7 +36,9 @@ interface PlatformeContent {
 interface MediaItem {
   nom: string
   type: string
-  preview?: string
+  preview?: string   // aperçu local (dataURL) pendant l'upload
+  url?: string        // URL Drive persistée une fois l'upload terminé
+  uploading?: boolean
 }
 
 interface PostParticipant { id: number; prenom: string; nom: string }
@@ -41,20 +46,6 @@ interface PostParticipants {
   apprenantes: PostParticipant[]
   benevoles: string[]
   formatrices: string[]
-}
-
-interface IntegrationsConfig {
-  method: "none" | "zapier" | "supabase"
-  zapierWebhookUrl: string
-  zapierTriggerOn: "validé" | "publié"
-  zapierEnabled: boolean
-}
-
-const integrationsInitial: IntegrationsConfig = {
-  method: "none",
-  zapierWebhookUrl: "",
-  zapierTriggerOn: "validé",
-  zapierEnabled: false,
 }
 
 interface Post {
@@ -69,7 +60,6 @@ interface Post {
   plateformeContenu: Partial<Record<Plateforme, PlatformeContent>>
   statut: ValidationStatus
   auteur: string
-  evenement?: string | null
   sessionId?: number | null
   participants?: PostParticipants
 }
@@ -79,28 +69,32 @@ interface SessionSlim {
   titre: string
   date: string
   beneficiaireIds: number[]
-  benevoleIds: number[]
-  formatrice: string
 }
 
 interface BenefSlim {
   id: number
   prenom: string
   nom: string
-  droitsImage?: boolean
+  droitsImage: boolean            // true seulement si la colonne Sheet vaut "Oui"
+  droitsImageRenseigne: boolean   // false si le champ n'a jamais été rempli côté Familles
 }
 
-// ──────────────────────────────────────────────
-// Données initiales
-// ──────────────────────────────────────────────
-const postsInitiaux: Post[] = [
-  { id: 1, categorie: "atelier", date: "2026-05-21", titre: "Recap atelier HTML/CSS",       contenu: "Super séance aujourd'hui avec nos débutantes ! 💻 Elles ont créé leur première page web from scratch…",         plateforme: ["LinkedIn", "Instagram"], plateformeContenu: {}, statut: "à valider",                auteur: "Nadjat",  evenement: "Atelier 21 mai",          sessionId: null, participants: { apprenantes: [], benevoles: [], formatrices: [] } },
-  { id: 2, categorie: "autre",   date: "2026-05-23", titre: "Portrait bénévole – Amira",    contenu: "Rencontre avec Amira, bénévole depuis 2 ans. Elle nous parle de ce qui l'a amenée à rejoindre l'association…",    plateforme: ["Instagram"],             plateformeContenu: {}, statut: "brouillon",                  auteur: "Nadjat",  evenement: null,                      sessionId: null },
-  { id: 3, categorie: "autre",   date: "2026-05-27", titre: "Annonce portes ouvertes",       contenu: "📣 Portes ouvertes le 7 juin ! Venez découvrir nos ateliers, rencontrer l'équipe et vous inscrire pour la rentrée.", plateforme: ["LinkedIn", "Instagram", "Facebook"], plateformeContenu: {}, statut: "brouillon", auteur: "Nadjat", evenement: "Portes ouvertes 7 juin", sessionId: null },
-  { id: 4, categorie: "autre",   date: "2026-06-07", titre: "Live portes ouvertes",          contenu: "🔴 On est EN DIRECT depuis nos portes ouvertes ! Rejoignez-nous pour voir ce qui se passe…",                      plateforme: ["Instagram"],             plateformeContenu: {}, statut: "validé",                     auteur: "Nadjat",  evenement: "Portes ouvertes 7 juin", sessionId: null },
-  { id: 5, categorie: "autre",   date: "2026-06-28", titre: "Remise des diplômes Promo 3",   contenu: "Félicitations à toutes les diplômées de la Promo 3 ! 🎓 Quelle fierté de les accompagner jusqu'au bout.",          plateforme: ["LinkedIn", "Instagram", "Facebook"], plateformeContenu: {}, statut: "brouillon", auteur: "Somayeh", evenement: "Remise des diplômes",    sessionId: null },
-  { id: 6, categorie: "atelier", date: "2026-05-15", titre: "Témoignage Mariam D.",          contenu: "Mariam partage son parcours : de zéro à la création de son premier site web en 8 semaines.",                       plateforme: ["LinkedIn"],              plateformeContenu: {}, statut: "publié",                     auteur: "Nadjat",  evenement: null,                      sessionId: null, participants: { apprenantes: [], benevoles: [], formatrices: [] } },
-]
+// Formes renvoyées par /api/sheets?action=getAteliers / getBeneficiaires (voir app/ateliers/page.tsx)
+interface AtelierSheetRow {
+  ID_Atelier: string
+  Titre: string
+  Categorie: string
+  Groupe: string
+  Date_Debut: string
+  beneficiaireIds: string[]
+}
+
+interface BeneficiaireSheetRow {
+  ID_Personne: string
+  Prenom: string
+  Nom: string
+  Droit_Image: string
+}
 
 const KANBAN_COLS: { id: ValidationStatus; label: string; color: string }[] = [
   { id: "brouillon",                label: "Brouillon",  color: "bg-slate-100 border-slate-200" },
@@ -119,6 +113,128 @@ const plateformeStyle: Record<Plateforme, string> = {
   LinkedIn:  "bg-blue-100 text-blue-700",
   Instagram: "bg-purple-100 text-purple-700",
   Facebook:  "bg-indigo-100 text-indigo-700",
+}
+
+// ──────────────────────────────────────────────
+// Aperçu du post (simulation réseau social)
+// ──────────────────────────────────────────────
+const ASSO_NAME = "Ada Tech School"
+const ASSO_HANDLE = "adatechschool"
+const ASSO_INITIALS = "AT"
+
+function PreviewAvatar({ size = 9 }: { size?: 7 | 9 }) {
+  const classes = size === 7 ? "w-7 h-7 text-[9px]" : "w-9 h-9 text-xs"
+  return (
+    <div className={`${classes} rounded-full bg-slate-800 text-white flex items-center justify-center font-bold shrink-0`}>
+      {ASSO_INITIALS}
+    </div>
+  )
+}
+
+function PreviewMedia({ media }: { media?: MediaItem[] }) {
+  const first = media?.[0]
+  if (!first) return null
+  const src = first.preview ?? first.url
+  if (first.type === "image" && src) {
+    return <img src={src} alt={first.nom} className="w-full aspect-video object-cover" />
+  }
+  return (
+    <div className="w-full aspect-video bg-slate-100 flex items-center justify-center text-xs text-muted gap-1.5">
+      🎬 Vidéo — {first.nom}
+    </div>
+  )
+}
+
+function PostPreviewCard({ platform, contenu, tags, media }: {
+  platform: Plateforme
+  contenu: string
+  tags?: string
+  media?: MediaItem[]
+}) {
+  const isEmpty = !contenu.trim()
+  const texte = isEmpty ? "Votre contenu apparaîtra ici…" : contenu
+  const texteClass = isEmpty ? "text-muted/60 italic" : "text-foreground"
+
+  if (platform === "Instagram") {
+    return (
+      <div className="rounded-2xl border border-border bg-white overflow-hidden text-sm shadow-sm">
+        <div className="flex items-center gap-2 p-3">
+          <PreviewAvatar size={7} />
+          <span className="text-xs font-semibold text-foreground">{ASSO_HANDLE}</span>
+          <MoreHorizontal size={14} className="ml-auto text-muted" />
+        </div>
+        <div className="w-full aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
+          {media?.[0]?.type === "image" && (media[0].preview ?? media[0].url)
+            ? <img src={media[0].preview ?? media[0].url} alt="" className="w-full h-full object-cover" />
+            : <span className="text-xs text-muted/60">Aucune image</span>}
+        </div>
+        <div className="flex items-center gap-3 px-3 pt-2.5 text-foreground">
+          <Heart size={18} />
+          <MessageCircle size={18} />
+          <Send size={18} />
+          <Bookmark size={18} className="ml-auto" />
+        </div>
+        <p className="px-3 pt-1.5 pb-0.5 text-xs leading-snug">
+          <span className="font-semibold">{ASSO_HANDLE}</span>{" "}
+          <span className={texteClass}>{texte}</span>
+          {tags && <span className="text-blue-600"> {tags}</span>}
+        </p>
+        <p className="px-3 pb-3 pt-1 text-[10px] text-muted uppercase tracking-wide">Il y a quelques secondes</p>
+      </div>
+    )
+  }
+
+  if (platform === "Facebook") {
+    return (
+      <div className="rounded-2xl border border-border bg-white overflow-hidden text-sm shadow-sm">
+        <div className="flex items-center gap-2 p-3">
+          <PreviewAvatar />
+          <div>
+            <p className="text-xs font-semibold text-foreground">{ASSO_NAME}</p>
+            <p className="text-[10px] text-muted">À l&apos;instant · 🌐</p>
+          </div>
+          <MoreHorizontal size={14} className="ml-auto text-muted" />
+        </div>
+        <p className={`px-3 pb-2 whitespace-pre-wrap leading-snug ${texteClass}`}>
+          {texte}{tags && <span className="text-blue-600"> {tags}</span>}
+        </p>
+        <PreviewMedia media={media} />
+        <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-muted border-t border-border">
+          <span>👍❤️ 0</span>
+          <span>0 commentaires · 0 partages</span>
+        </div>
+        <div className="flex items-center justify-around px-1 py-1 border-t border-border text-xs font-medium text-muted">
+          <span className="flex items-center gap-1.5 py-1.5"><ThumbsUp size={14} /> J&apos;aime</span>
+          <span className="flex items-center gap-1.5 py-1.5"><MessageCircle size={14} /> Commenter</span>
+          <span className="flex items-center gap-1.5 py-1.5"><Share2 size={14} /> Partager</span>
+        </div>
+      </div>
+    )
+  }
+
+  // LinkedIn
+  return (
+    <div className="rounded-2xl border border-border bg-white overflow-hidden text-sm shadow-sm">
+      <div className="flex items-center gap-2 p-3">
+        <PreviewAvatar />
+        <div>
+          <p className="text-xs font-semibold text-foreground">{ASSO_NAME}</p>
+          <p className="text-[10px] text-muted">Association · À l&apos;instant · 🌐</p>
+        </div>
+        <MoreHorizontal size={14} className="ml-auto text-muted" />
+      </div>
+      <p className={`px-3 pb-2 whitespace-pre-wrap leading-snug ${texteClass}`}>
+        {texte}{tags && <span className="text-blue-600"> {tags}</span>}
+      </p>
+      <PreviewMedia media={media} />
+      <div className="flex items-center justify-around px-1 py-1 border-t border-border text-xs font-medium text-muted">
+        <span className="flex items-center gap-1.5 py-1.5"><ThumbsUp size={14} /> J&apos;aime</span>
+        <span className="flex items-center gap-1.5 py-1.5"><MessageCircle size={14} /> Commenter</span>
+        <span className="flex items-center gap-1.5 py-1.5"><Share2 size={14} /> Republier</span>
+        <span className="flex items-center gap-1.5 py-1.5"><Send size={14} /> Envoyer</span>
+      </div>
+    </div>
+  )
 }
 
 // ──────────────────────────────────────────────
@@ -335,103 +451,6 @@ function KanbanTab({ posts, rejectedIds = [], onChangeStatus, onEdit }: {
 }
 
 // ──────────────────────────────────────────────
-// Onglet Intégrations
-// ──────────────────────────────────────────────
-function IntegrationsTab({ config, onChange, onTest, testStatus }: {
-  config: IntegrationsConfig
-  onChange: (c: IntegrationsConfig) => void
-  onTest: () => void
-  testStatus: "idle" | "sending" | "ok" | "error"
-}) {
-  return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted">Connectez vos réseaux sociaux pour automatiser la publication des posts validés.</p>
-      <div className="grid grid-cols-2 gap-4">
-        <div onClick={() => onChange({ ...config, method: "zapier" })} className={`rounded-2xl border-2 p-5 flex flex-col gap-4 cursor-pointer transition-colors ${config.method === "zapier" ? "border-ateliers bg-ateliers-light" : "border-border bg-surface hover:bg-slate-50"}`}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-base font-bold text-foreground">Zapier / Make</span>
-                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">Disponible</span>
-              </div>
-              <p className="text-xs text-muted">Via webhook HTTP — aucun backend requis</p>
-            </div>
-            <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 transition-colors ${config.method === "zapier" ? "border-ateliers bg-ateliers" : "border-slate-300"}`} />
-          </div>
-          <ul className="text-xs text-muted space-y-1.5">
-            <li className="flex items-start gap-1.5"><span className="text-emerald-500 shrink-0 font-bold">✓</span> Fonctionne sans backend</li>
-            <li className="flex items-start gap-1.5"><span className="text-emerald-500 shrink-0 font-bold">✓</span> Configure en 10 minutes</li>
-            <li className="flex items-start gap-1.5"><span className="text-slate-400 shrink-0">·</span> Compte Zapier ou Make requis</li>
-          </ul>
-        </div>
-        <div className="rounded-2xl border-2 border-border bg-surface p-5 flex flex-col gap-4 opacity-50 cursor-not-allowed">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-base font-bold text-foreground">Supabase</span>
-                <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-semibold">Phase 2</span>
-              </div>
-              <p className="text-xs text-muted">Via Edge Functions — intégration native</p>
-            </div>
-            <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0 mt-0.5" />
-          </div>
-          <ul className="text-xs text-muted space-y-1.5">
-            <li className="flex items-start gap-1.5"><span className="text-emerald-500 shrink-0 font-bold">✓</span> Tokens OAuth sécurisés côté serveur</li>
-            <li className="flex items-start gap-1.5"><span className="text-slate-400 shrink-0">⏳</span> Nécessite la migration Supabase (ADR 001)</li>
-          </ul>
-        </div>
-      </div>
-      {config.method === "zapier" && (
-        <div className="bg-surface border border-border rounded-2xl p-5 space-y-5">
-          <h3 className="text-sm font-semibold text-foreground">Configuration Zapier / Make</h3>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">URL du webhook</label>
-            <div className="flex gap-2">
-              <input type="url" placeholder="https://hooks.zapier.com/hooks/catch/..." value={config.zapierWebhookUrl} onChange={(e) => onChange({ ...config, zapierWebhookUrl: e.target.value })} className="flex-1 text-sm border border-border rounded-xl px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-ateliers/30" />
-              <button type="button" onClick={onTest} disabled={!config.zapierWebhookUrl || testStatus === "sending"} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap">
-                {testStatus === "sending" && <span className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />}
-                {testStatus === "ok"      && <CheckCircle2 size={13} className="text-emerald-500" />}
-                {testStatus === "error"   && <XCircle size={13} className="text-alert" />}
-                {testStatus === "idle" && "Tester"}{testStatus === "sending" && "Envoi…"}{testStatus === "ok" && "OK !"}{testStatus === "error" && "Erreur"}
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Déclencher quand un post est</label>
-            <div className="flex gap-2">
-              {(["validé", "publié"] as const).map((v) => (
-                <button key={v} type="button" onClick={() => onChange({ ...config, zapierTriggerOn: v })} className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors capitalize ${config.zapierTriggerOn === v ? "bg-ateliers-light text-ateliers-dark border-ateliers/30" : "bg-surface border-border text-muted hover:border-slate-400"}`}>{v}</button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-border">
-            <div>
-              <p className="text-sm font-medium text-foreground">Activer l'envoi automatique</p>
-              <p className="text-xs text-muted mt-0.5">Le webhook sera appelé à chaque changement de statut correspondant</p>
-            </div>
-            <button type="button" onClick={() => onChange({ ...config, zapierEnabled: !config.zapierEnabled })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.zapierEnabled ? "bg-ateliers" : "bg-slate-200"}`}>
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${config.zapierEnabled ? "translate-x-6" : "translate-x-1"}`} />
-            </button>
-          </div>
-          {config.zapierEnabled && config.zapierWebhookUrl && (
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs text-emerald-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              Actif — les posts &ldquo;{config.zapierTriggerOn}&rdquo; déclencheront le webhook
-            </div>
-          )}
-        </div>
-      )}
-      {config.method === "none" && (
-        <div className="text-center py-10 text-muted text-sm">
-          <Shuffle size={28} className="mx-auto mb-3 opacity-30" />
-          Sélectionnez une méthode d'intégration ci-dessus pour la configurer.
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ──────────────────────────────────────────────
 // Page principale
 // ──────────────────────────────────────────────
 const emptyParticipants = (): PostParticipants => ({ apprenantes: [], benevoles: [], formatrices: [] })
@@ -449,71 +468,121 @@ const emptyPost = (): Omit<Post, "id"> => ({
 })
 
 const ALL_PLATEFORMES: Plateforme[] = ["LinkedIn", "Instagram", "Facebook"]
+const ALL_STATUTS: ValidationStatus[] = ["brouillon", "à valider", "validé", "publié"]
+
+// Mappe la forme générique renvoyée par /api/sheets (feuille CONTENUS) vers notre type Post local
+function sheetPostToPost(p: {
+  id: number
+  categorie: string
+  date: string
+  titre: string
+  brief?: string
+  contenu?: string
+  media: { nom: string; type: string; url?: string }[]
+  plateforme: string[]
+  plateformeContenu: Record<string, PlatformeContent>
+  statut: string
+  auteur: string
+  sessionId: number | null
+  participants?: PostParticipants
+}): Post {
+  return {
+    id: p.id,
+    categorie: p.categorie === "atelier" ? "atelier" : "autre",
+    date: p.date,
+    titre: p.titre,
+    brief: p.brief ?? "",
+    contenu: p.contenu ?? "",
+    media: p.media.map(m => ({ nom: m.nom, type: m.type, url: m.url })),
+    plateforme: p.plateforme.filter((pl): pl is Plateforme => (ALL_PLATEFORMES as string[]).includes(pl)),
+    plateformeContenu: p.plateformeContenu as Partial<Record<Plateforme, PlatformeContent>>,
+    statut: ALL_STATUTS.includes(p.statut as ValidationStatus) ? (p.statut as ValidationStatus) : "brouillon",
+    auteur: p.auteur,
+    sessionId: p.sessionId,
+    participants: p.participants,
+  }
+}
 
 export default function CommunicationPage() {
-  const [tab, setTab] = useState<"calendrier" | "kanban" | "integrations">("calendrier")
+  const [tab, setTab] = useState<"calendrier" | "kanban">("calendrier")
 
-  const [posts, setPosts] = useState<Post[]>(postsInitiaux)
+  const [posts, setPosts] = useState<Post[]>([])
+  const [postsLoading, setPostsLoading] = useState(true)
+  const [postsError, setPostsError] = useState<string | null>(null)
   const [slideOpen, setSlideOpen] = useState(false)
   const [editing, setEditing] = useState<Post | null>(null)
   const [form, setForm] = useState<Omit<Post, "id">>(emptyPost())
   const [activePlatformTab, setActivePlatformTab] = useState<Plateforme>("Instagram")
   const [newFormatrice, setNewFormatrice] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [rejectedIds, setRejectedIds] = useState<number[]>([])
-
-  const [integrations, setIntegrations] = useState<IntegrationsConfig>(integrationsInitial)
-  const [webhookTestStatus, setWebhookTestStatus] = useState<"idle" | "sending" | "ok" | "error">("idle")
 
   const [sessions, setSessions]           = useState<SessionSlim[]>([])
   const [beneficiaires, setBeneficiaires] = useState<BenefSlim[]>([])
   const [generating, setGenerating]       = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const raw = load<Post[]>(STORAGE_POSTS, postsInitiaux)
-    // Migration : "en attente de validation" → "à valider"
-    const migrated = raw.map(p =>
-      (p.statut as string) === "en attente de validation" ? { ...p, statut: "à valider" as ValidationStatus } : p
-    )
-    if (migrated.some((p, i) => p !== raw[i])) {
-      localStorage.setItem(STORAGE_POSTS, JSON.stringify(migrated))
+  const loadPosts = useCallback(async () => {
+    setPostsLoading(true)
+    setPostsError(null)
+    try {
+      const data = await fetchPosts()
+      setPosts(data.map(sheetPostToPost))
+    } catch (e) {
+      console.error("Échec chargement des posts (Google Sheets)", e)
+      setPostsError("Impossible de charger les posts depuis Google Sheets.")
+    } finally {
+      setPostsLoading(false)
     }
-    setPosts(migrated)
-    setRejectedIds(load<number[]>(STORAGE_REJECTED, []))
-    setIntegrations(load(STORAGE_INTEGRATIONS, integrationsInitial))
-    setSessions(load(S_SESSIONS, []))
-    setBeneficiaires(load(S_BENEFICIAIRES, []))
   }, [])
 
-  function persistPosts(data: Post[]) { setPosts(data); localStorage.setItem(STORAGE_POSTS, JSON.stringify(data)) }
+  // Ateliers + bénéficiaires (nom, prénom, droit à l'image) : depuis Google Sheets,
+  // pour que le floutage se base sur les vraies fiches Familles, pas sur des données de seed.
+  const loadAteliersEtBeneficiaires = useCallback(async () => {
+    try {
+      const [ateliersRes, benefRes] = await Promise.all([
+        fetch("/api/sheets?action=getAteliers"),
+        fetch("/api/sheets?action=getBeneficiaires"),
+      ])
+      const ateliersRows: AtelierSheetRow[] = ateliersRes.ok ? await ateliersRes.json() : []
+      const benefRows: BeneficiaireSheetRow[] = benefRes.ok ? await benefRes.json() : []
+
+      setSessions(ateliersRows.map(a => ({
+        id: Number(a.ID_Atelier),
+        titre: a.Titre || [a.Categorie, a.Groupe].filter(Boolean).join(" · "),
+        date: frToIso(a.Date_Debut),
+        beneficiaireIds: a.beneficiaireIds.map(Number).filter(n => !isNaN(n)),
+      })))
+
+      setBeneficiaires(benefRows.map(b => {
+        const raw = String(b.Droit_Image ?? "").trim()
+        return {
+          id: Number(b.ID_Personne),
+          prenom: b.Prenom,
+          nom: b.Nom,
+          droitsImageRenseigne: raw !== "",
+          droitsImage: raw.toLowerCase() === "oui",
+        }
+      }))
+    } catch (e) {
+      console.error("Échec chargement ateliers/bénéficiaires (Google Sheets)", e)
+      setSessions([])
+      setBeneficiaires([])
+    }
+  }, [])
+
+  useEffect(() => {
+    loadPosts()
+    loadAteliersEtBeneficiaires()
+    setRejectedIds(load<number[]>(STORAGE_REJECTED, []))
+  }, [loadPosts, loadAteliersEtBeneficiaires])
+
   function persistRejected(ids: number[]) { setRejectedIds(ids); localStorage.setItem(STORAGE_REJECTED, JSON.stringify(ids)) }
-  function persistIntegrations(data: IntegrationsConfig) { setIntegrations(data); localStorage.setItem(STORAGE_INTEGRATIONS, JSON.stringify(data)) }
 
-  async function triggerWebhook(post: Post) {
-    if (!integrations.zapierEnabled || !integrations.zapierWebhookUrl || integrations.method !== "zapier") return
-    if (post.statut !== integrations.zapierTriggerOn) return
-    try {
-      await fetch(integrations.zapierWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titre: post.titre, contenu: post.contenu ?? "", plateformes: post.plateforme, auteur: post.auteur, date: post.date }),
-      })
-    } catch { /* silently ignore */ }
-  }
-
-  async function testWebhook() {
-    if (!integrations.zapierWebhookUrl) return
-    setWebhookTestStatus("sending")
-    try {
-      await fetch(integrations.zapierWebhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ titre: "Test depuis Asso Pilotage", contenu: "Ceci est un test de connexion webhook.", plateformes: ["LinkedIn"], auteur: "Test", date: new Date().toISOString().split("T")[0], evenement: null }) })
-      setWebhookTestStatus("ok")
-    } catch { setWebhookTestStatus("error") }
-    setTimeout(() => setWebhookTestStatus("idle"), 3000)
-  }
-
-  function changeStatus(id: number, status: ValidationStatus) {
+  async function changeStatus(id: number, status: ValidationStatus) {
     const prev = posts.find(p => p.id === id)
     // Dot rouge : allumé quand "à valider" → "brouillon", éteint dès que le post quitte brouillon
     if (status === "brouillon" && prev?.statut === "à valider") {
@@ -521,10 +590,12 @@ export default function CommunicationPage() {
     } else if (status !== "brouillon" && rejectedIds.includes(id)) {
       persistRejected(rejectedIds.filter(rid => rid !== id))
     }
-    const updated = posts.map((p) => p.id === id ? { ...p, statut: status } : p)
-    persistPosts(updated)
-    const post = updated.find((p) => p.id === id)
-    if (post) triggerWebhook({ ...post, statut: status })
+    setPosts(posts.map((p) => p.id === id ? { ...p, statut: status } : p))
+    try {
+      await apiUpdatePost(id, { statut: status })
+    } catch (e) {
+      console.error("Échec mise à jour du statut (Google Sheets)", e)
+    }
   }
 
   function openNew() {
@@ -611,17 +682,34 @@ export default function CommunicationPage() {
     }
   }
 
-  function handleSave() {
-    const updated = editing
-      ? posts.map((p) => p.id === editing.id ? { ...form, id: editing.id } : p)
-      : [...posts, { ...form, id: Date.now() }]
-    persistPosts(updated); setSlideOpen(false)
+  async function handleSave() {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      if (editing) {
+        await apiUpdatePost(editing.id, form)
+        setPosts(posts.map((p) => p.id === editing.id ? { ...form, id: editing.id } : p))
+      } else {
+        const res = await apiAddPost(form)
+        setPosts([...posts, { ...form, id: res.id }])
+      }
+      setSlideOpen(false)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Erreur lors de l'enregistrement.")
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!editing) return
-    persistPosts(posts.filter((p) => p.id !== editing.id))
-    setSlideOpen(false)
+    try {
+      await apiDeletePost(editing.id)
+      setPosts(posts.filter((p) => p.id !== editing.id))
+      setSlideOpen(false)
+    } catch (e) {
+      console.error("Échec suppression du post (Google Sheets)", e)
+    }
   }
 
   function togglePlateforme(pl: Plateforme) {
@@ -636,16 +724,38 @@ export default function CommunicationPage() {
     setForm(f => ({ ...f, plateformeContenu: { ...f.plateformeContenu, [pl]: { ...f.plateformeContenu[pl], [key]: value } } }))
   }
 
+  // Un seul média par type (image / vidéo) : un nouvel ajout remplace le précédent du même type,
+  // pour correspondre aux colonnes "Image" / "Vidéo" (singulières) de la feuille CONTENUS.
   function handleMediaFiles(files: FileList | null) {
     if (!files) return
     Array.from(files).forEach(file => {
-      if (file.type.startsWith("image/")) {
-        const reader = new FileReader()
-        reader.onload = (e) => setForm(f => ({ ...f, media: [...(f.media ?? []), { nom: file.name, type: "image", preview: e.target?.result as string }] }))
-        reader.readAsDataURL(file)
-      } else {
-        setForm(f => ({ ...f, media: [...(f.media ?? []), { nom: file.name, type: "video" }] }))
+      const type: "image" | "video" = file.type.startsWith("image/") ? "image" : "video"
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string
+        const dataBase64 = dataUrl.split(",")[1] ?? ""
+        setForm(f => ({
+          ...f,
+          media: [
+            ...(f.media ?? []).filter(m => m.type !== type),
+            { nom: file.name, type, preview: dataUrl, uploading: true },
+          ],
+        }))
+        try {
+          const res = await uploadPostMedia({ nom: file.name, mimeType: file.type, dataBase64 })
+          setForm(f => ({
+            ...f,
+            media: (f.media ?? []).map(m => (m.type === type && m.nom === file.name) ? { ...m, url: res.url, uploading: false } : m),
+          }))
+        } catch (err) {
+          console.error("Échec upload média (Google Drive)", err)
+          setForm(f => ({
+            ...f,
+            media: (f.media ?? []).map(m => (m.type === type && m.nom === file.name) ? { ...m, uploading: false } : m),
+          }))
+        }
       }
+      reader.readAsDataURL(file)
     })
   }
 
@@ -662,11 +772,9 @@ export default function CommunicationPage() {
       .map(bid => beneficiaires.find(b => b.id === bid))
       .filter((b): b is BenefSlim => Boolean(b))
       .map(b => ({ id: b.id, prenom: b.prenom, nom: b.nom }))
-    const benevoles = session.benevoleIds
-      .map(bid => benevolesMock.liste.find(bv => bv.id === bid))
-      .filter(Boolean)
-      .map(bv => bv!.nom)
-    setForm(f => ({ ...f, sessionId: id, participants: { apprenantes, benevoles, formatrices: session.formatrice ? [session.formatrice] : [] } }))
+    // Bénévoles/formatrices : pas (encore) rattaché aux ateliers côté Sheets — on garde la saisie
+    // manuelle déjà en place plutôt que d'écraser ce que la personne a déjà renseigné.
+    setForm(f => ({ ...f, sessionId: id, participants: { apprenantes, benevoles: f.participants?.benevoles ?? [], formatrices: f.participants?.formatrices ?? [] } }))
   }
 
   function removeApprenante(index: number) {
@@ -715,7 +823,7 @@ export default function CommunicationPage() {
   const droitsImageConfigured = useMemo(() =>
     (form.participants?.apprenantes ?? []).some(a => {
       const benef = beneficiaires.find(b => b.id === a.id)
-      return benef && "droitsImage" in benef
+      return benef?.droitsImageRenseigne
     }),
     [form.participants?.apprenantes, beneficiaires]
   )
@@ -729,6 +837,11 @@ export default function CommunicationPage() {
   const availableBeneficiaires = beneficiaires.filter(b => !form.participants?.apprenantes.some(a => a.id === b.id))
   const availableBenevoles = benevolesMock.liste.filter(bv => !form.participants?.benevoles.includes(bv.nom))
 
+  const previewPlatform = form.plateforme.includes(activePlatformTab) ? activePlatformTab : form.plateforme[0]
+  const previewContenu = form.plateformeContenu[previewPlatform]?.contenu?.trim() || form.contenu || ""
+  const previewTags = form.plateformeContenu[previewPlatform]?.tags
+  const mediaUploading = (form.media ?? []).some(m => m.uploading)
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <header className="mb-6 flex items-start justify-between">
@@ -736,13 +849,15 @@ export default function CommunicationPage() {
           <h1 className="text-2xl font-bold text-foreground">Communication</h1>
           <p className="text-sm text-muted mt-1">Calendrier éditorial & circuit de validation des posts</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors">
+        <button onClick={openNew} disabled={postsLoading} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           <Plus size={14} /> Nouveau post
         </button>
       </header>
 
-      <SlideOver open={slideOpen} onClose={() => setSlideOpen(false)} title={editing ? "Modifier le post" : "Nouveau post"} width="lg">
-        <form onSubmit={(e) => { e.preventDefault(); handleSave() }} className="flex flex-col gap-4">
+      <SlideOver open={slideOpen} onClose={() => setSlideOpen(false)} title={editing ? "Modifier le post" : "Nouveau post"} width="xl">
+        <form onSubmit={(e) => { e.preventDefault(); handleSave() }}>
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6 items-start">
+        <div className="flex flex-col gap-4">
           <FormRow>
             <Field label="Catégorie" required>
               <Select value={form.categorie} onChange={e => setForm(f => ({ ...f, categorie: e.target.value as CategoriePost, participants: e.target.value === "atelier" ? (f.participants ?? emptyParticipants()) : emptyParticipants() }))}>
@@ -798,14 +913,20 @@ export default function CommunicationPage() {
 
           <Field label="Images / Vidéos">
             <div className="space-y-2">
+              <p className="text-[11px] text-muted">Une image et/ou une vidéo par post (un nouvel ajout remplace le précédent du même type).</p>
               {(form.media ?? []).length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {(form.media ?? []).map((m, i) => (
                     <div key={i} className="relative group">
-                      {m.preview
-                        ? <img src={m.preview} alt={m.nom} className="h-16 w-16 rounded-lg object-cover border border-border" />
-                        : <div className="h-16 w-16 rounded-lg border border-border bg-slate-100 flex items-center justify-center text-[10px] text-muted text-center p-1 leading-tight">{m.nom}</div>
+                      {m.type === "image" && (m.preview ?? m.url)
+                        ? <img src={m.preview ?? m.url} alt={m.nom} className="h-16 w-16 rounded-lg object-cover border border-border" />
+                        : <div className="h-16 w-16 rounded-lg border border-border bg-slate-100 flex items-center justify-center text-[10px] text-muted text-center p-1 leading-tight">{m.type === "video" ? "🎬 Vidéo" : m.nom}</div>
                       }
+                      {m.uploading && (
+                        <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
                       <button type="button" onClick={() => removeMedia(i)} className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <X size={9} />
                       </button>
@@ -982,11 +1103,48 @@ export default function CommunicationPage() {
             <Input placeholder="Nadjat" value={form.auteur} onChange={e => setForm(f => ({ ...f, auteur: e.target.value }))} />
           </Field>
 
-          <SaveButton />
+          {saveError && (
+            <p className="text-[11px] text-alert bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">{saveError}</p>
+          )}
+          <SaveButton
+            disabled={saving || mediaUploading}
+            label={saving ? "Enregistrement…" : mediaUploading ? "Envoi du média…" : "Enregistrer"}
+          />
           {editing && <DeleteButton onClick={handleDelete} />}
+        </div>
+
+        <div className="hidden xl:flex xl:flex-col gap-3 xl:sticky xl:top-0">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wider">
+            Aperçu {form.plateforme.includes(activePlatformTab) && `— ${activePlatformTab}`}
+          </p>
+          {form.plateforme.length > 0 ? (
+            <PostPreviewCard
+              platform={previewPlatform}
+              contenu={previewContenu}
+              tags={previewTags}
+              media={form.media}
+            />
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted">
+              Sélectionnez une plateforme pour voir l&apos;aperçu.
+            </div>
+          )}
+        </div>
+        </div>
         </form>
       </SlideOver>
 
+      {postsError && (
+        <div className="mb-6 text-sm text-alert bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          {postsError}
+          <button onClick={loadPosts} className="shrink-0 text-xs font-medium underline hover:no-underline">Réessayer</button>
+        </div>
+      )}
+
+      {postsLoading ? (
+        <div className="py-20 text-center text-sm text-muted">Chargement des posts…</div>
+      ) : (
+      <>
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-100 rounded-xl border border-slate-200 p-4">
           <p className="text-3xl font-bold text-slate-700">{nbBrouillons}</p>
@@ -1004,9 +1162,8 @@ export default function CommunicationPage() {
 
       <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit">
         {([
-          { id: "calendrier",   icon: <Calendar size={14} />, label: "Calendrier" },
-          { id: "kanban",       icon: <Columns3 size={14} />, label: "Suivi" },
-          { id: "integrations", icon: <Shuffle size={14} />,  label: "Intégrations" },
+          { id: "calendrier", icon: <Calendar size={14} />, label: "Calendrier" },
+          { id: "kanban",     icon: <Columns3 size={14} />, label: "Suivi" },
         ] as const).map(t => (
           <button
             key={t.id}
@@ -1014,14 +1171,14 @@ export default function CommunicationPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === t.id ? "bg-surface text-foreground shadow-sm" : "text-muted hover:text-foreground"}`}
           >
             {t.icon} {t.label}
-            {t.id === "integrations" && integrations.zapierEnabled && integrations.zapierWebhookUrl && <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />}
           </button>
         ))}
       </div>
 
-      {tab === "calendrier"   && <CalendrierTab posts={posts} onNewPost={openNewWithDate} />}
-      {tab === "kanban"       && <KanbanTab posts={posts} rejectedIds={rejectedIds} onChangeStatus={changeStatus} onEdit={openEdit} />}
-      {tab === "integrations" && <IntegrationsTab config={integrations} onChange={persistIntegrations} onTest={testWebhook} testStatus={webhookTestStatus} />}
+      {tab === "calendrier" && <CalendrierTab posts={posts} onNewPost={openNewWithDate} />}
+      {tab === "kanban"     && <KanbanTab posts={posts} rejectedIds={rejectedIds} onChangeStatus={changeStatus} onEdit={openEdit} />}
+      </>
+      )}
     </div>
   )
 }

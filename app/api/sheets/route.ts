@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerUser } from "@/lib/supabase/server"
 import {
   getSheetsClient, SPREADSHEET_ID,
-  sheetToObjects, appendRow, updateRowById, deleteRowById, deleteRowsWhere, deleteRowsWhereAll, nextId, fmtDate, parseDateFr, ensureColumn,
-  uploadToDrive, getHeaders, deleteDriveFile,
+  sheetToObjects, appendRow, updateRowById, deleteRowById, deleteRowsWhere, deleteRowsWhereAll, nextId, fmtDate, parseDateFr, ensureColumn, ensureColumns,
+  uploadToDrive, getHeaders, deleteDriveFile, makeFilePublic, COMMUNICATION_MEDIA_FOLDER_ID,
 } from "@/lib/google-sheets-server"
 
 type Sheets = ReturnType<typeof getSheetsClient>
@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
         return ok(await getIntervenants(sheets))
       case "getBeneficiaires":
         return ok(await getBeneficiaires(sheets, searchParams.get("audience") ?? undefined))
+      case "getPosts":
+        return ok(await getPosts(sheets))
       default:
         return err(`Action inconnue : ${action}`)
     }
@@ -92,6 +94,10 @@ export async function POST(request: NextRequest) {
       case "deleteAtelier":   return ok(await deleteAtelier(sheets, body.idAtelier))
       case "uploadFichier":   return ok(await uploadFichier(sheets, body))
       case "deleteDocument":  return ok(await deleteDocument(sheets, body.idDoc))
+      case "addPost":         return ok(await addPost(sheets, body.data))
+      case "updatePost":      return ok(await updatePost(sheets, body.id, body.data))
+      case "deletePost":      return ok(await deletePost(sheets, body.id))
+      case "uploadPostMedia": return ok(await uploadPostMedia(body))
       default:
         return err(`Action inconnue : ${action}`)
     }
@@ -182,6 +188,128 @@ async function deleteDocument(sheets: Sheets, idDoc: string) {
   }
   const supprime = await deleteRowById(sheets, "DOCUMENTS JOINTS", String(idDoc))
   return supprime ? { ok: true } : { error: "Document introuvable" }
+}
+
+// ── CONTENUS (Communication) ──────────────────────────────
+// Colonnes existantes : ID | Titre | Contenu principal | Image | Vidéo | Tags | État  |
+//                       Date programmée | Plateforme RS | Catégorie  | Event ID
+// Colonnes ajoutées (ensureColumns) pour couvrir la richesse de l'app :
+//   Auteur | Brief | Plateforme Contenu (JSON) | Participants (JSON) | Session ID
+const CONTENUS_COLONNES_ETENDUES = ["Auteur", "Brief", "Plateforme Contenu", "Participants", "Session ID"]
+
+function rowToPost(r: Record<string, unknown>) {
+  let plateformeContenu: Record<string, unknown> = {}
+  try { plateformeContenu = JSON.parse(String(r["Plateforme Contenu"] ?? "{}")) } catch { /* JSON invalide, ignore */ }
+  let participants: unknown = undefined
+  try { participants = r["Participants"] ? JSON.parse(String(r["Participants"])) : undefined } catch { /* ignore */ }
+
+  const media: { nom: string; type: string; url: string }[] = []
+  if (r["Image"]) media.push({ nom: "image", type: "image", url: String(r["Image"]) })
+  if (r["Vidéo"]) media.push({ nom: "vidéo", type: "video", url: String(r["Vidéo"]) })
+
+  return {
+    id: Number(r["ID"]),
+    categorie: String(r["Catégorie "] || "autre"),
+    date: String(r["Date programmée"] ?? ""),
+    titre: String(r["Titre"] ?? ""),
+    brief: String(r["Brief"] ?? ""),
+    contenu: String(r["Contenu principal"] ?? ""),
+    media,
+    plateforme: String(r["Plateforme RS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+    plateformeContenu,
+    statut: String(r["État "] || "brouillon"),
+    auteur: String(r["Auteur"] ?? ""),
+    sessionId: r["Session ID"] ? Number(r["Session ID"]) : null,
+    participants,
+  }
+}
+
+/** Ne remplit que les colonnes explicitement fournies dans `data` (update partiel). */
+function postWriteMap(data: Record<string, unknown>): Record<string, unknown> {
+  const map: Record<string, unknown> = {}
+  if (data.titre !== undefined) map["Titre"] = data.titre
+  if (data.contenu !== undefined) map["Contenu principal"] = data.contenu
+  if (data.media !== undefined) {
+    const media = (data.media as Array<{ type: string; url?: string }> | undefined) ?? []
+    map["Image"] = media.find((m) => m.type === "image")?.url ?? ""
+    map["Vidéo"] = media.find((m) => m.type === "video")?.url ?? ""
+  }
+  if (data.statut !== undefined) map["État "] = data.statut
+  if (data.date !== undefined) map["Date programmée"] = data.date
+  if (data.plateforme !== undefined) map["Plateforme RS"] = Array.isArray(data.plateforme) ? data.plateforme.join(",") : ""
+  if (data.categorie !== undefined) map["Catégorie "] = data.categorie
+  if (data.auteur !== undefined) map["Auteur"] = data.auteur
+  if (data.brief !== undefined) map["Brief"] = data.brief
+  if (data.plateformeContenu !== undefined) map["Plateforme Contenu"] = JSON.stringify(data.plateformeContenu ?? {})
+  if (data.participants !== undefined) map["Participants"] = data.participants ? JSON.stringify(data.participants) : ""
+  if (data.sessionId !== undefined) map["Session ID"] = data.sessionId ?? ""
+  return map
+}
+
+async function getPosts(sheets: Sheets) {
+  const rows = await sheetToObjects(sheets, "CONTENUS")
+  return rows.map(rowToPost)
+}
+
+async function addPost(sheets: Sheets, data: Record<string, unknown>) {
+  await ensureColumns(sheets, "CONTENUS", CONTENUS_COLONNES_ETENDUES)
+  const id = await nextId(sheets, "CONTENUS")
+  const headers = await getHeaders(sheets, "CONTENUS")
+  const valeurs: Record<string, unknown> = { "ID": id, ...postWriteMap(data) }
+  const row = headers.map((h) => (valeurs[h] !== undefined ? String(valeurs[h]) : ""))
+
+  // ⚠️ Ne pas utiliser appendRow/values.append ici : sur une feuille neuve/clairsemée avec une
+  // grille large (colonnes bien au-delà des en-têtes), l'auto-détection de tableau de l'API Sheets
+  // se trompe et décale les valeurs de plusieurs colonnes (constaté : décalage de colonnes qui
+  // grandit à chaque appel). On écrit donc à une plage explicite, comme pour DOCUMENTS JOINTS.
+  const colA = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: "CONTENUS!A2:A" })
+  const aVals = colA.data.values ?? []
+  let ligne = aVals.length + 2
+  for (let i = 0; i < aVals.length; i++) {
+    if (!aVals[i] || !aVals[i][0]) { ligne = i + 2; break }
+  }
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `CONTENUS!A${ligne}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [row] },
+  })
+  return { ok: true, id }
+}
+
+async function updatePost(sheets: Sheets, id: number, data: Record<string, unknown>) {
+  await ensureColumns(sheets, "CONTENUS", CONTENUS_COLONNES_ETENDUES)
+  const updated = await updateRowById(sheets, "CONTENUS", id, postWriteMap(data))
+  return updated ? { ok: true } : { error: "Post introuvable" }
+}
+
+async function deletePost(sheets: Sheets, id: number) {
+  // Best-effort : supprimer les médias Drive associés (Image / Vidéo)
+  const rows = await sheetToObjects(sheets, "CONTENUS")
+  const row = rows.find((r) => String(r["ID"]) === String(id))
+  if (row) {
+    for (const col of ["Image", "Vidéo"]) {
+      // "Image" = thumbnail?id=... ; "Vidéo" = webViewLink /file/d/{id}/view
+      const url = String(row[col] ?? "")
+      const m = /[?&]id=([^&]+)/.exec(url) ?? /\/file\/d\/([^/]+)/.exec(url)
+      if (m) { try { await deleteDriveFile(m[1]) } catch { /* le compte de service ne peut pas toujours supprimer */ } }
+    }
+  }
+  const deleted = await deleteRowById(sheets, "CONTENUS", id)
+  return deleted ? { ok: true } : { error: "Post introuvable" }
+}
+
+async function uploadPostMedia(body: Record<string, unknown>) {
+  const nom = String(body.nom ?? "media")
+  const mimeType = String(body.mimeType ?? "application/octet-stream")
+  const dataBase64 = String(body.dataBase64 ?? "")
+  if (!dataBase64) return { error: "Fichier vide" }
+  const { fileId, url: webViewLink } = await uploadToDrive(nom, mimeType, dataBase64, COMMUNICATION_MEDIA_FOLDER_ID)
+  await makeFilePublic(fileId) // rend le fichier lisible par lien (le lien "uc?export=download" renvoyé n'est pas utilisable en <img> inline)
+  // Pour les images : endpoint "thumbnail" de Drive, conçu pour l'affichage inline (contrairement à uc?export=download/view, peu fiable en <img src>).
+  // Pour les vidéos : pas de lecteur inline pour l'instant, on garde le lien de visualisation Drive.
+  const url = mimeType.startsWith("image/") ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600` : webViewLink
+  return { ok: true, url, fileId }
 }
 
 // ── POSITIONNEMENT ────────────────────────────────────────
@@ -437,6 +565,7 @@ async function getBeneficiaires(sheets: Sheets, audience?: string) {
         Disponibilite: lastInsc ? (lastInsc["Disponibilite"] ?? "") : "",
         Type_Apprenant: lastInsc ? (lastInsc["Type apprenant"] ?? "") : "",
         Niveau_CECRL: lastEval ? (lastEval["Niveau attribue"] ?? "") : "",
+        Droit_Image: p["Droit a l'image"] ?? "",
         notes: {
           comprehensionEcrite: numOrNull(lastEval?.["Note comprehension ecrite"]),
           comprehensionOrale:  numOrNull(lastEval?.["Note comprehension orale"]),

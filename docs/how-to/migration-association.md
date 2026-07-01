@@ -22,8 +22,7 @@ sans dépendance à un compte personnel.
 | **Vercel** | Compte perso | Équipe (Team) Vercel de l'asso | Le projet + variables d'env + domaine |
 | **Google Cloud** | Projet GCP perso | Projet GCP de l'asso | Le **compte de service** (clés) |
 | **Google Sheet + Drive** | Drive perso | Drive de l'asso | Le Sheet `BDD_Asso_CRM` + 4 dossiers de documents |
-| **Anthropic (Claude)** | Compte perso | Compte + facturation asso | La clé API (module Communication) |
-| **Zapier** *(si utilisé)* | Compte perso | Compte asso | Le Zap + l'URL du webhook |
+| **Google AI Studio (Gemini)** | Compte perso | Compte + facturation asso | La clé API (OCR + module Communication) |
 
 ### Comptes à créer côté association (préalable)
 
@@ -31,7 +30,7 @@ Avant de commencer, créer :
 1. Une **organisation GitHub** (github.com → *Your organizations* → *New organization*, plan gratuit suffisant).
 2. Un **compte Google** de l'association (idéalement un **Google Workspace** ou au minimum un compte Gmail dédié, ex. `tech@nom-asso.org`).
 3. Un **compte Vercel** rattaché à ce compte, avec une **Team**.
-4. Un **compte Anthropic** (console.anthropic.com) avec un moyen de paiement de l'asso.
+4. Une **clé API Gemini** (Google AI Studio) avec un moyen de paiement de l'asso si nécessaire.
 
 > 💡 Utiliser une **adresse email de l'association** (pas une adresse perso) pour créer
 > chacun de ces comptes. C'est le point le plus important de toute la passation.
@@ -42,11 +41,9 @@ Faire dans cet ordre pour minimiser les interruptions :
 
 1. GitHub (transfert du dépôt)
 2. Google Cloud + Sheet/Drive (le backend Familles)
-3. Anthropic (clé API)
+3. Gemini (clé API)
 4. Vercel (reconnexion + variables d'env) ← **en dernier**, une fois les secrets prêts
 5. Vérifications + mise à jour des références dans le code
-
-*(Zapier/Make : optionnel, voir la note en fin de section 4.)*
 
 ---
 
@@ -107,12 +104,13 @@ Deux choses à migrer : les **données** (Sheet + dossiers Drive) et les **clés
 
 ---
 
-## 3. Anthropic — clé API (module Communication)
+## 3. Gemini — clé API (OCR + module Communication)
 
-La génération IA des posts (`app/api/generate-post/route.ts`) utilise l'API Claude.
+L'OCR des bulletins d'inscription (`app/api/ocr/route.ts`) et la génération IA des posts
+(`app/api/generate-post/route.ts`) utilisent l'API Google Gemini.
 
-1. [console.anthropic.com](https://console.anthropic.com) connecté au compte de l'asso → **Billing** : ajouter un moyen de paiement.
-2. **API Keys → Create Key** → copier la clé (`sk-ant-…`) → variable `ANTHROPIC_API_KEY`.
+1. [aistudio.google.com](https://aistudio.google.com) connecté au compte Google de l'asso → **Get API key**.
+2. Copier la clé générée → variable `GEMINI_API_KEY`.
 3. Après la bascule, **révoquer l'ancienne clé** personnelle.
 
 ---
@@ -131,19 +129,12 @@ La génération IA des posts (`app/api/generate-post/route.ts`) utilise l'API Cl
    |---|---|
    | `GOOGLE_CLIENT_EMAIL` | l'email du compte de service (étape 2b) |
    | `GOOGLE_PRIVATE_KEY` | la clé privée du compte de service |
-   | `ANTHROPIC_API_KEY` | la clé Claude (étape 3) |
+   | `GEMINI_API_KEY` | la clé Gemini (étape 3) |
 
 5. **Deploy**. Vérifier le build (0 erreur).
 6. **Settings → Domains** : reconfigurer le domaine de production (`asso-inky.vercel.app` ou un domaine propre à l'asso).
 
 > L'ancien projet Vercel personnel peut être **supprimé** une fois le nouveau validé.
-
----
-
-> **Note — Zapier / Make (optionnel).** Le module Communication peut appeler un webhook
-> quand un post passe en `validé` / `publié`. C'est **désactivé par défaut** et configuré
-> dans l'app (onglet **Communication → Intégrations**), pas au niveau infra. *Si* un webhook
-> est utilisé, le recréer sous le compte de l'asso et recoller la nouvelle URL dans cet onglet.
 
 ---
 
@@ -170,7 +161,7 @@ grep -rlnE "anais0210|asso-inky|anais-projects" . | grep -vE "node_modules|packa
 ```
 GOOGLE_CLIENT_EMAIL=...@....iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=...
 ```
 
 - `GOOGLE_PRIVATE_KEY` : coller la valeur **exactement comme dans le JSON**, avec les `\n`
@@ -182,7 +173,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## Sécurité — à ne pas oublier
 
-- [ ] **Révoquer** l'ancienne clé Anthropic personnelle.
+- [ ] **Révoquer** l'ancienne clé Gemini personnelle.
 - [ ] **Supprimer** l'ancien compte de service Google (ou sa clé) une fois le nouveau en place.
 - [ ] **Retirer** les anciens accès personnels au Sheet / aux dossiers Drive.
 - [ ] **Retirer** les collaborateurs qui ne doivent plus avoir accès au dépôt.
@@ -198,10 +189,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 - [ ] Dépôt GitHub transféré, collaborateurs ré-invités, remotes locaux mis à jour
 - [ ] Sheet `BDD_Asso_CRM` + dossiers Drive appartenant à l'asso
 - [ ] Compte de service asso créé, Sheet + dossiers partagés en Éditeur
-- [ ] Clé Anthropic de l'asso créée
+- [ ] Clé Gemini de l'asso créée
 - [ ] Projet Vercel de l'asso déployé avec les 3 variables d'env → build OK
 - [ ] Module **Familles** testé en prod (créer/lire/modifier une famille, un paiement, un document)
 - [ ] Génération IA testée (module **Communication**)
-- [ ] Zapier reconfiguré (si utilisé)
 - [ ] Références `anais0210` / `asso-inky` mises à jour dans le code
 - [ ] Anciens accès et clés révoqués
