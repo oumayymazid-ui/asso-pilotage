@@ -10,8 +10,8 @@ import { ChevronRight, Plus, Pencil, Upload, FileText, ExternalLink, X } from "l
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
   addPaiement, updatePaiement, deletePaiement, addInscription, updateInscription, uploadFichier,
-  fetchDocuments, deleteDocument,
-  type FamilleSheet, type MembreSheet, type PaiementSheet, type InscriptionSheet, type DocumentJoint
+  fetchDocuments, deleteDocument, fetchScolariteFamille,
+  type FamilleSheet, type MembreSheet, type PaiementSheet, type InscriptionSheet, type DocumentJoint, type ScolariteEntry
 } from "@/lib/sheets-api"
 
 function fileToBase64(file: File): Promise<string> {
@@ -129,6 +129,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [paiements, setPaiements] = useState<PaiementSheet[]>([])
   const [inscriptions, setInscriptions] = useState<InscriptionSheet[]>([])
   const [documents, setDocuments] = useState<DocumentJoint[]>([])
+  const [scolarites, setScolarites] = useState<ScolariteEntry[]>([])
   const [loading, setLoading]   = useState(true)
   const [slideOpen, setSlideOpen] = useState(false)
   const [form, setForm]         = useState<Partial<MembreSheet>>({})
@@ -154,17 +155,19 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
 
   const loadData = useCallback(async () => {
     try {
-      const [familles, m, p, docs] = await Promise.all([
+      const [familles, m, p, docs, scol] = await Promise.all([
         fetchFamilles(),
         fetchMembre(membreId),
         fetchPaiements(membreId),
         fetchDocuments(membreId),
+        fetchScolariteFamille(id),
       ])
       setFamille(familles.find(f => f.ID_Famille === id) ?? null)
       setMembre(m)
       setForm(m)
       setPaiements(p)
       setDocuments(docs)
+      setScolarites(scol)
 
       // Mise à jour automatique : inscriptions EN COURS dont l'année est échue → Terminé
       const fetchedInscriptions = m.inscriptions ?? []
@@ -345,6 +348,22 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     { label: "Charte d'engagement", value: membre.Charte ? String(membre.Charte) : "" },
   ].filter(c => c.value !== "")
 
+  // Scolarité : la sienne (enfant) et celle des enfants de la famille (parent)
+  const estEnfant = membre.Role === "Enfant"
+  const maScolarite = scolarites.find(s => s.ID_Membre === membreId) ?? null
+  const scolariteEnfants = scolarites.filter(s => s.ID_Membre !== membreId)
+  const etabLabel = (e: ScolariteEntry["Etablissement"]) => e ? e.Nom : ""
+
+  const champsScolarite: { label: string; value: string }[] = maScolarite ? [
+    { label: "Établissement", value: etabLabel(maScolarite.Etablissement) },
+    { label: "Professeur principal", value: maScolarite.ProfPrincipal?.Nom || "" },
+    { label: "Téléphone prof.", value: maScolarite.ProfPrincipal?.Telephone || "" },
+    { label: "Email prof.", value: maScolarite.ProfPrincipal?.Email || "" },
+    { label: "Autorisation de sortie", value: maScolarite.Autorisation_Sortie || "" },
+    { label: "Bulletins reçus", value: maScolarite.Bulletins || "" },
+    { label: "Rencontre prof.", value: maScolarite.Rencontre_Prof || "" },
+  ].filter(c => c.value !== "") : []
+
   return (
     <div className="p-6 max-w-3xl mx-auto">
 
@@ -431,6 +450,41 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
           ))}
         </div>
       </div>
+
+      {/* Scolarité — fiche d'un enfant */}
+      {estEnfant && champsScolarite.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-5 mb-6">
+          <h2 className="text-sm font-semibold text-foreground mb-3">Scolarité</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+            {champsScolarite.map(c => (
+              <InfoRow key={c.label} label={c.label} value={c.value} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scolarité des enfants — fiche d'un parent */}
+      {!estEnfant && scolariteEnfants.length > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-5 mb-6">
+          <h2 className="text-sm font-semibold text-foreground mb-3">
+            Scolarité des enfants
+            <span className="ml-2 text-xs font-normal text-muted">({scolariteEnfants.length})</span>
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {scolariteEnfants.map(sc => (
+              <li key={sc.ID_Membre}>
+                <Link
+                  href={`/familles/${id}/membre/${sc.ID_Membre}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-2.5 hover:border-familles/40 hover:bg-familles-light/40 transition-colors"
+                >
+                  <span className="text-sm font-medium text-familles-dark">{sc.Prenom} {sc.Nom}</span>
+                  <span className="text-sm text-muted text-right">{etabLabel(sc.Etablissement) || "Établissement non renseigné"}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Documents — affiché uniquement s'il y en a */}
       {documents.length > 0 && (

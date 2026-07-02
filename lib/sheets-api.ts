@@ -150,6 +150,22 @@ export async function fetchPaiements(idMembre: string): Promise<PaiementSheet[]>
   return data
 }
 
+// Scolarité des membres d'une famille (établissement + prof principal + suivis).
+export interface ScolariteEntry {
+  ID_Membre: string
+  Nom: string
+  Prenom: string
+  Etablissement: { Type: string; Nom: string } | null
+  ProfPrincipal: { Nom: string; Telephone: string; Email: string } | null
+  Autorisation_Sortie: string
+  Bulletins: string
+  Rencontre_Prof: string
+}
+
+export async function fetchScolariteFamille(idFamille: string): Promise<ScolariteEntry[]> {
+  return apiGet("getScolariteFamille", { idFamille }) as Promise<ScolariteEntry[]>
+}
+
 // ── ÉCRITURE ────────────────────────────────────
 
 export async function addFamille(data: Partial<FamilleSheet>): Promise<{ ok: boolean, ID_Famille: string }> {

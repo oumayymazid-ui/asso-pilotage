@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
         return ok(await getFamilles(sheets))
       case "getMembres":
         return ok(await getMembres(sheets, searchParams.get("idFamille") ?? undefined))
+      case "getScolariteFamille":
+        return ok(await getScolariteFamille(sheets, searchParams.get("idFamille")!))
       case "getMembre":
         return ok(await getMembre(sheets, searchParams.get("idMembre")!))
       case "getPaiements":
@@ -246,6 +248,42 @@ async function getMembres(sheets: Sheets, idFamille?: string) {
   const membres = personnes.map((p) => mapMembre(p, inscriptions))
   if (idFamille) return membres.filter((m) => m.ID_Famille === String(idFamille))
   return membres
+}
+
+// Scolarité des membres d'une famille (jointure SCOLARITE → ETABLISSEMENT + PROFESSEUR).
+// Ne renvoie que les personnes de la famille ayant une ligne SCOLARITE (typiquement les enfants).
+async function getScolariteFamille(sheets: Sheets, idFamille: string) {
+  const [personnes, scolarites, etabs, profs] = await Promise.all([
+    sheetToObjects(sheets, "PERSONNE"),
+    sheetToObjects(sheets, "SCOLARITE"),
+    sheetToObjects(sheets, "ETABLISSEMENT"),
+    sheetToObjects(sheets, "PROFESSEUR"),
+  ])
+  const etabById = new Map(etabs.map((e) => [String(e["ID"]), e]))
+  const profById = new Map(profs.map((p) => [String(p["ID"]), p]))
+  const persById = new Map(personnes.map((p) => [String(p["ID"]), p]))
+  const idsFamille = new Set(
+    personnes.filter((p) => String(p["Famille ID"]) === String(idFamille)).map((p) => String(p["ID"]))
+  )
+  return scolarites
+    .filter((sc) => idsFamille.has(String(sc["Personne ID"])))
+    .map((sc) => {
+      const p = persById.get(String(sc["Personne ID"]))
+      const etab = etabById.get(String(sc["Etablissement ID"]))
+      const prof = profById.get(String(sc["Prof principal ID"]))
+      return {
+        ID_Membre: String(sc["Personne ID"]),
+        Nom: String(p?.["Nom"] ?? ""),
+        Prenom: String(p?.["Prenom"] ?? ""),
+        Etablissement: etab ? { Type: String(etab["Type"] ?? ""), Nom: String(etab["Nom"] ?? "") } : null,
+        ProfPrincipal: prof
+          ? { Nom: String(prof["Nom"] ?? ""), Telephone: String(prof["Telephone"] ?? ""), Email: String(prof["Email"] ?? "") }
+          : null,
+        Autorisation_Sortie: String(sc["Autorisation de sortie"] ?? ""),
+        Bulletins: String(sc["Bulletins"] ?? ""),
+        Rencontre_Prof: String(sc["Rencontre prof"] ?? ""),
+      }
+    })
 }
 
 async function getMembre(sheets: Sheets, idMembre: string) {
