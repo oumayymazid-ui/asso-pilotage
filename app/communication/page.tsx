@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { benevoles as benevolesMock } from "@/lib/mock-data"
-import { Calendar, Columns3, Check, X, RotateCcw, Plus, Users, ChevronRight, Heart, MessageCircle, Send, Bookmark, ThumbsUp, MoreHorizontal, Share2 } from "lucide-react"
+import { Calendar, Columns3, Check, X, RotateCcw, Plus, Users, ChevronRight, Heart, MessageCircle, Send, Bookmark, ThumbsUp, MoreHorizontal, Share2, Pencil, Clock, CheckCircle2 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import SlideOver, { Field, Input, Textarea, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import { fetchPosts, addPost as apiAddPost, updatePost as apiUpdatePost, deletePost as apiDeletePost, uploadPostMedia } from "@/lib/sheets-api"
 
@@ -110,6 +111,14 @@ const KANBAN_COLS: { id: ValidationStatus; label: string; color: string }[] = [
   { id: "validé",                   label: "Validé",     color: "bg-indigo-50 border-indigo-200" },
   { id: "publié",                   label: "Publié",     color: "bg-emerald-50 border-emerald-200" },
 ]
+
+// Picto par état — réutilisé dans l'agenda (calendrier) et le kanban pour la lisibilité
+const STATUT_ICON: Record<ValidationStatus, LucideIcon> = {
+  brouillon:   Pencil,
+  "à valider": Clock,
+  validé:      Check,
+  publié:      CheckCircle2,
+}
 
 const PlatIcon = ({ p }: { p: Plateforme }) => {
   if (p === "Instagram") return <span className="text-[10px] font-bold">IG</span>
@@ -303,13 +312,6 @@ function CalendrierTab({ posts, onNewPost }: { posts: Post[]; onNewPost: (date: 
     return counts
   }, [postsByDay])
 
-  const statutDot: Record<ValidationStatus, string> = {
-    brouillon:     "bg-slate-300",
-    "à valider":   "bg-absences",
-    validé:        "bg-indigo-600",
-    publié:        "bg-emerald-500",
-  }
-
   const statutBg: Record<ValidationStatus, string> = {
     brouillon:   "bg-slate-100 text-slate-600",
     "à valider": "bg-absences-light text-absences-dark",
@@ -341,9 +343,12 @@ function CalendrierTab({ posts, onNewPost }: { posts: Post[]; onNewPost: (date: 
           </button>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted">
-          {Object.entries(statutDot).map(([s, c]) => (
-            <span key={s} className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${c}`} />{s}</span>
-          ))}
+          {(Object.keys(statutBg) as ValidationStatus[]).map((s) => {
+            const Icon = STATUT_ICON[s]
+            return (
+              <span key={s} className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${statutBg[s]}`}><Icon size={11} className="shrink-0" /> {s}</span>
+            )
+          })}
         </div>
       </div>
       <div className="flex items-center gap-2 py-1">
@@ -372,16 +377,20 @@ function CalendrierTab({ posts, onNewPost }: { posts: Post[]; onNewPost: (date: 
               className={`min-h-24 rounded-lg border p-1.5 text-xs cursor-pointer ${isToday ? "border-ateliers bg-ateliers-light hover:bg-ateliers-light/80" : "border-border bg-surface hover:bg-slate-50"}`}
             >
               <div className={`font-semibold mb-1 ${isToday ? "text-ateliers-dark" : "text-muted"}`}>{day}</div>
-              {dayPosts.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={(e) => e.stopPropagation()}
-                  className={`flex items-center gap-1 mb-0.5 px-1 py-0.5 rounded ${statutBg[p.statut]}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statutDot[p.statut]}`} />
-                  <span className="truncate text-[10px] font-medium">{p.titre}</span>
-                </div>
-              ))}
+              {dayPosts.map((p) => {
+                const Icon = STATUT_ICON[p.statut]
+                return (
+                  <div
+                    key={p.id}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`flex items-center gap-1 mb-0.5 px-1 py-0.5 rounded ${statutBg[p.statut]}`}
+                    title={p.statut}
+                  >
+                    <Icon size={11} className="shrink-0" />
+                    <span className="truncate text-[10px] font-medium">{p.titre}</span>
+                  </div>
+                )
+              })}
             </div>
           )
         })}
@@ -411,10 +420,11 @@ function KanbanTab({ posts, rejectedIds = [], onChangeStatus, onEdit }: {
           const colPosts = col.id === "publié"
             ? [...allColPosts].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3)
             : allColPosts
+          const StatutIcon = STATUT_ICON[col.id]
           return (
             <div key={col.id} className={`rounded-xl border-2 p-3 flex flex-col gap-3 min-h-48 ${col.color}`}>
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-foreground leading-tight">{col.label}</h3>
+                <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground leading-tight"><StatutIcon size={13} className="shrink-0" /> {col.label}</h3>
                 <span className="text-xs bg-white/70 rounded-full px-2 py-0.5 font-medium text-muted">{allColPosts.length}</span>
               </div>
               {colPosts.map((p) => (
@@ -899,7 +909,7 @@ export default function CommunicationPage() {
           <h1 className="text-2xl font-bold text-foreground">Communication</h1>
           <p className="text-sm text-muted mt-1">Calendrier éditorial & circuit de validation des posts</p>
         </div>
-        <button onClick={openNew} disabled={postsLoading} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <button onClick={openNew} disabled={postsLoading} className="flex items-center gap-1.5 text-sm font-medium bg-communication-dark text-white px-4 py-2 rounded-xl hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           <Plus size={14} /> Nouveau post
         </button>
       </header>
@@ -1160,6 +1170,7 @@ export default function CommunicationPage() {
             <p className="text-[11px] text-alert bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">{saveError}</p>
           )}
           <SaveButton
+            accent="communication"
             disabled={saving || mediaUploading}
             label={saving ? "Enregistrement…" : mediaUploading ? "Envoi du média…" : "Enregistrer"}
           />

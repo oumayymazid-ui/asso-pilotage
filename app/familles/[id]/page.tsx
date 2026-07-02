@@ -322,7 +322,7 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
           <Field label="Quartier QVP">
             <Input value={String(familleForm.Quartier_QVP ?? "")} onChange={e => setFamilleForm(f => ({ ...f, Quartier_QVP: e.target.value }))} placeholder="ex. Bellevue Nantes" />
           </Field>
-          <SaveButton />
+          <SaveButton accent="familles" />
           <DeleteButton onClick={() => router.push("/familles")} />
         </form>
       </SlideOver>
@@ -454,7 +454,7 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
               <p className="text-xs text-muted mt-1.5">{membreFichier.name}</p>
             )}
           </Field>
-          <SaveButton label={saving ? "Enregistrement…" : "Enregistrer"} />
+          <SaveButton accent="familles" label={saving ? "Enregistrement…" : "Enregistrer"} />
         </form>
       </SlideOver>
     </div>

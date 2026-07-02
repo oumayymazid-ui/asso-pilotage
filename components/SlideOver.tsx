@@ -124,13 +124,27 @@ export function FormRow({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-3">{children}</div>
 }
 
-export function SaveButton({ onClick, label = "Enregistrer", disabled }: { onClick?: () => void; label?: string; disabled?: boolean }) {
+// Accents par module — classes statiques (Tailwind ne génère pas les classes dynamiques).
+// Modules dorés (communication/absences/subventions) : variante -dark pour le contraste du texte blanc.
+const SAVE_ACCENTS = {
+  brand:          "bg-brand hover:bg-brand-dark",
+  ateliers:       "bg-ateliers hover:bg-ateliers-dark",
+  benevoles:      "bg-benevoles hover:bg-benevoles-dark",
+  positionnement: "bg-positionnement hover:bg-positionnement-dark",
+  finances:       "bg-finances hover:bg-finances-dark",
+  familles:       "bg-familles hover:bg-familles-dark",
+  communication:  "bg-communication-dark hover:opacity-90",
+  absences:       "bg-absences-dark hover:opacity-90",
+  subventions:    "bg-subventions-dark hover:opacity-90",
+} as const
+
+export function SaveButton({ onClick, label = "Enregistrer", disabled, accent = "brand" }: { onClick?: () => void; label?: string; disabled?: boolean; accent?: keyof typeof SAVE_ACCENTS }) {
   return (
     <button
       type="submit"
       onClick={onClick}
       disabled={disabled}
-      className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-700 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      className={`w-full ${SAVE_ACCENTS[accent]} text-white py-2.5 rounded-xl text-sm font-semibold transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed`}
     >
       {label}
     </button>

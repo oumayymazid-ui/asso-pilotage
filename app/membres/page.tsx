@@ -174,7 +174,7 @@ export default function MembresPage() {
           <h1 className="text-2xl font-bold text-foreground">Équipe</h1>
           <p className="text-sm text-muted mt-1">Comptes de l'équipe et accès aux modules</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors">
+        <button onClick={openNew} className="flex items-center gap-1.5 text-sm font-medium bg-brand text-white px-4 py-2 rounded-xl hover:bg-brand-dark transition-colors">
           <Plus size={14} /> Ajouter un membre
         </button>
       </header>

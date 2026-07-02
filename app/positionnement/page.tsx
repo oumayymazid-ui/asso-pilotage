@@ -179,7 +179,7 @@ export default function PositionnementPage() {
             <button
               onClick={imprimer}
               title={!toutGenere ? "Imprime les exercices déjà générés pour ce niveau" : undefined}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-foreground text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-positionnement text-white text-sm font-medium hover:bg-positionnement-dark transition-colors"
             >
               <Printer size={15} />
               Imprimer

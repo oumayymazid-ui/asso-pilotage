@@ -709,7 +709,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
               <option value="CB">Carte bancaire</option>
             </Select>
           </Field>
-          <SaveButton />
+          <SaveButton accent="familles" />
           {payEditing && <DeleteButton onClick={handleDeletePaiement} />}
         </form>
       </SlideOver>
@@ -765,7 +765,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
               {(Number(reinscForm.Montant_Adhesion) || 0) + (Number(reinscForm.Montant_Inscription) || 0)} €
             </span>
           </div>
-          <SaveButton />
+          <SaveButton accent="familles" />
         </form>
       </SlideOver>
 
@@ -792,7 +792,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
               placeholder="Motif, observations…"
             />
           </Field>
-          <SaveButton />
+          <SaveButton accent="familles" />
         </form>
       </SlideOver>
 
@@ -869,7 +869,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
               {(Number(inscForm.Montant_Adhesion) || 0) + (Number(inscForm.Montant_Inscription) || 0)} €
             </span>
           </div>
-          <SaveButton />
+          <SaveButton accent="familles" />
         </form>
       </SlideOver>
 
@@ -941,7 +941,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
           <Field label="Date d'inscription">
             <DateInput value={form.Date_Inscription != null ? String(form.Date_Inscription) : ""} onChange={v => setForm(f => ({ ...f, Date_Inscription: v }))} />
           </Field>
-          <SaveButton />
+          <SaveButton accent="familles" />
           <DeleteButton onClick={handleDelete} />
         </form>
       </SlideOver>
