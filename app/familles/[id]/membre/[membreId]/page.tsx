@@ -435,6 +435,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
 
       {/* Carte infos */}
       <div className="bg-surface border border-border rounded-xl p-5 mb-6">
+        <h2 className="text-sm font-semibold text-foreground mb-3">Informations personnelles</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
           {champsInfos.map(c => (
             <InfoRow key={c.label} label={c.label} value={c.value} />
