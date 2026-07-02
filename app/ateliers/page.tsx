@@ -1501,7 +1501,7 @@ function IntervenantsTab({
           </p>
           <button
             onClick={onNew}
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium bg-ateliers text-white px-4 py-2 rounded-xl hover:bg-ateliers-dark transition-colors"
           >
             <Plus size={14} /> Nouvel intervenant
           </button>
@@ -2088,7 +2088,7 @@ export default function AteliersPage() {
           {tab === "ateliers" && (
             <button
               onClick={openNewSession}
-              className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors"
+              className="flex items-center gap-1.5 text-sm font-medium bg-ateliers text-white px-4 py-2 rounded-xl hover:bg-ateliers-dark transition-colors"
             >
               <Plus size={14} /> Nouvel atelier
             </button>
@@ -2096,7 +2096,7 @@ export default function AteliersPage() {
           {tab === "intervenants" && (
             <button
               onClick={openNewIntervenant}
-              className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors"
+              className="flex items-center gap-1.5 text-sm font-medium bg-ateliers text-white px-4 py-2 rounded-xl hover:bg-ateliers-dark transition-colors"
             >
               <Plus size={14} /> Nouvel intervenant
             </button>
@@ -2448,7 +2448,7 @@ export default function AteliersPage() {
                 <button
                   type="button"
                   onClick={() => openEditSession(s)}
-                  className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-700 transition-colors"
+                  className="w-full bg-ateliers text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-ateliers-dark transition-colors"
                 >
                   Modifier
                 </button>
@@ -2766,7 +2766,7 @@ export default function AteliersPage() {
             )
           })()}
 
-          <SaveButton />
+          <SaveButton accent="ateliers" />
           {editingSession && <DeleteButton onClick={() => handleDeleteAtelier(editingSession.id)} />}
         </form>
       </SlideOver>
@@ -2846,7 +2846,7 @@ export default function AteliersPage() {
             </div>
           </Field>
 
-          <SaveButton />
+          <SaveButton accent="ateliers" />
           {editingGroupe && <DeleteButton onClick={handleDeleteGroupe} />}
         </form>
       </SlideOver>
@@ -2913,7 +2913,7 @@ export default function AteliersPage() {
             </Field>
           </FormRow>
 
-          <SaveButton />
+          <SaveButton accent="ateliers" />
           {editingIntervenant && (
             <DeleteButton onClick={() => handleDeleteIntervenant(editingIntervenant.ID_Intervenant)} />
           )}
@@ -3021,7 +3021,7 @@ export default function AteliersPage() {
             </div>
           )}
 
-          <SaveButton />
+          <SaveButton accent="ateliers" />
           {editingSeance && (
             <DeleteButton onClick={() => handleDeleteSeance(editingSeance.id, editingSeance.atelierId)} />
           )}

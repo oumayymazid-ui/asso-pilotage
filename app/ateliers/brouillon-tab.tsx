@@ -766,7 +766,7 @@ export default function BrouillonGroupesTab(props: {
             💡 <b>Mode homogène</b> : les bénéficiaires aux notes proches sont regroupés (rythme pédagogique adapté).<br />
             <b>Mode hétérogène</b> : les niveaux sont mélangés (entraide entre pairs).
           </p>
-          <SaveButton />
+          <SaveButton accent="ateliers" />
         </form>
       </SlideOver>
 

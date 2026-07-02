@@ -78,7 +78,7 @@ function ProfilSection({ user, onUpdated }: {
           <Field label="Email" required>
             <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           </Field>
-          <button type="submit" className="self-start px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-700 transition-colors">
+          <button type="submit" className="self-start px-5 py-2 bg-brand text-white rounded-xl text-sm font-medium hover:bg-brand-dark transition-colors">
             Enregistrer
           </button>
         </form>
@@ -96,7 +96,7 @@ function ProfilSection({ user, onUpdated }: {
               <Input type="password" placeholder="Identique" value={pwdForm.confirmPwd} onChange={e => setPwdForm(f => ({ ...f, confirmPwd: e.target.value }))} />
             </Field>
           </div>
-          <button type="submit" className="self-start px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-700 transition-colors">
+          <button type="submit" className="self-start px-5 py-2 bg-brand text-white rounded-xl text-sm font-medium hover:bg-brand-dark transition-colors">
             Modifier le mot de passe
           </button>
         </form>

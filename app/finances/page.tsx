@@ -157,7 +157,7 @@ export default function FinancesPage() {
       <section className="bg-surface rounded-xl border border-border overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <h2 className="font-semibold text-foreground text-sm">Demandes de financement</h2>
-          <button onClick={() => openNew("demande")} className="flex items-center gap-1.5 text-xs font-medium bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors">
+          <button onClick={() => openNew("demande")} className="flex items-center gap-1.5 text-xs font-medium bg-finances text-white px-3 py-1.5 rounded-lg hover:bg-finances-dark transition-colors">
             <Plus size={13} /> Ajouter
           </button>
         </div>
@@ -223,7 +223,7 @@ export default function FinancesPage() {
           <h2 className="font-semibold text-foreground text-sm">Frais d'inscription</h2>
           <div className="flex items-center gap-3">
             {retards.length > 0 && <span className="text-xs text-alert font-medium">{retards.length} en retard</span>}
-            <button onClick={() => openNew("inscription")} className="flex items-center gap-1.5 text-xs font-medium bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors">
+            <button onClick={() => openNew("inscription")} className="flex items-center gap-1.5 text-xs font-medium bg-finances text-white px-3 py-1.5 rounded-lg hover:bg-finances-dark transition-colors">
               <Plus size={13} /> Ajouter
             </button>
           </div>
@@ -307,7 +307,7 @@ export default function FinancesPage() {
             <Field label="Notes">
               <Textarea placeholder="Observations, pièces manquantes…" value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </Field>
-            <SaveButton />
+            <SaveButton accent="finances" />
             {editing && <DeleteButton onClick={handleDelete} />}
           </form>
         ) : (
@@ -328,7 +328,7 @@ export default function FinancesPage() {
                 <option>payé</option><option>en attente</option><option>en retard</option>
               </Select>
             </Field>
-            <SaveButton />
+            <SaveButton accent="finances" />
             {editing && <DeleteButton onClick={handleDelete} />}
           </form>
         )}
