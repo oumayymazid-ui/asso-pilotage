@@ -7,7 +7,7 @@ import {
   type Thematique,
   type TypeBeneficiaire,
 } from "@/lib/positionnement"
-import type { FicheAtelier } from "@/lib/atelier"
+import { encadrantsRequis, type FicheAtelier } from "@/lib/atelier"
 import {
   composerGroupes,
   saveBrouillon,
@@ -19,7 +19,7 @@ import {
   type OptionsComposition,
   type Pondaration,
 } from "@/lib/group-composer"
-import SlideOver, { Field, Input, SaveButton } from "@/components/SlideOver"
+import SlideOver, { Field, Input, SaveButton, DeleteButton } from "@/components/SlideOver"
 import {
   Shuffle, RotateCcw, CheckCircle2, AlertTriangle, Users,
   GraduationCap, UserCheck, Sparkles, Settings, X, Plus,
@@ -41,7 +41,6 @@ interface Session extends FicheAtelier {
   heure: string
   duree: string
   salle: string
-  formatrice: string
   beneficiaireIds: number[]
   benevoleIds: number[]
   statut: SessionStatut
@@ -108,16 +107,28 @@ export default function BrouillonGroupesTab(props: {
   /** Appelé quand la collaboratrice valide un brouillon. Le parent doit
    *  remplacer les groupes deja rattachés à cet atelier (et non simplement
    *  ajouter) — sinon, une nouvelle validation crée un doublon de groupes
-   *  pour la même fiche atelier. */
-  onGroupesValides: (newGroupes: Groupe[], atelierId: number) => void
+   *  pour la même fiche atelier. La promesse DOIT rejeter en cas d'échec
+   *  (écriture Sheet) pour que le brouillon local ne soit pas effacé avant
+   *  que les groupes ne soient réellement créés côté serveur. */
+  onGroupesValides: (newGroupes: Groupe[], atelierId: number) => Promise<void>
   /** Met à jour la session source pour que l'onglet Ateliers reflète la
    *  composition validée (beneficiaireIds = union des groupes du brouillon). */
   onAtelierBenefsUpdated: (atelierId: number, beneficiaireIds: number[]) => void
   /** Optionnel : bascule automatiquement sur un autre onglet après validation
    *  (par défaut on bascule sur "Groupes" pour montrer le résultat). */
   onValidated?: (nbGroupes: number) => void
+  /** Écrit directement les membres d'un groupe déjà composé (atelier avec
+   *  beneficiaireIds réels, post-validation) dans le Sheet. Permet le CRUD
+   *  complet sur ce sous-onglet même après la validation, sans repasser par
+   *  un brouillon local. Doit rejeter en cas d'échec. */
+  onUpdateGroupeValide: (atelierId: number, beneficiaireIds: number[]) => Promise<void>
+  /** Supprime définitivement un groupe déjà composé (= supprime l'atelier). */
+  onSupprimerGroupeValide: (atelierId: number) => Promise<void>
 }) {
-  const { sessions, beneficiaires, onGroupesValides, onAtelierBenefsUpdated, onValidated } = props
+  const {
+    sessions, beneficiaires, onGroupesValides, onAtelierBenefsUpdated, onValidated,
+    onUpdateGroupeValide, onSupprimerGroupeValide,
+  } = props
 
   /** Brouillons indexés par atelierId. */
   const [brouillons, setBrouillons] = useState<Record<number, Brouillon | null>>({})
@@ -150,6 +161,22 @@ export default function BrouillonGroupesTab(props: {
 
   // Drag & drop
   const dragRef = useRef<{ benefId: number; fromGroupeId: string; atelierId: number } | null>(null)
+
+  // SlideOver "détails du groupe" — ouverte au clic sur une carte de groupe.
+  const [groupeSlide, setGroupeSlide] = useState(false)
+  /** `live: true` = groupe déjà composé (atelier réel, beneficiaireIds en
+   *  base) ; les changements s'écrivent directement dans le Sheet.
+   *  `live: false` = brouillon local, pas encore validé. */
+  const [viewingGroupe, setViewingGroupe] = useState<{ atelierId: number; groupeId: string; live: boolean } | null>(null)
+
+  /** Atelier dont la validation est en cours (écriture Sheet, ~5-10s) —
+   *  désactive le bouton pour éviter un double-clic pendant l'attente. */
+  const [validatingId, setValidatingId] = useState<number | null>(null)
+
+  /** Atelier dont un groupe déjà composé est en cours de modification
+   *  (ajout/retrait de membre ou suppression) — désactive les actions
+   *  pendant l'écriture Sheet. */
+  const [liveUpdatingId, setLiveUpdatingId] = useState<number | null>(null)
 
   // Chargement des brouillons existants pour chaque session
   useEffect(() => {
@@ -253,7 +280,83 @@ export default function BrouillonGroupesTab(props: {
     setBrouillons(m => ({ ...m, [atelierId]: null }))
   }
 
-  function validerComposition(atelier: Session, brouillon: Brouillon) {
+  function ouvrirGroupe(atelierId: number, groupeId: string, live: boolean) {
+    setViewingGroupe({ atelierId, groupeId, live })
+    setGroupeSlide(true)
+  }
+
+  /** Supprime uniquement ce groupe du brouillon — ses membres redeviennent
+   *  "libres" (ils ne sont plus comptés dans aucun groupe). */
+  function supprimerGroupe(atelierId: number, groupeId: string) {
+    const b = brouillons[atelierId]
+    if (!b) return
+    const updated: Brouillon = { ...b, groupes: b.groupes.filter(g => g.id !== groupeId) }
+    saveBrouillon(updated)
+    setBrouillons(m => ({ ...m, [atelierId]: updated }))
+    setGroupeSlide(false)
+  }
+
+  // ── Groupes déjà composés (post-validation) — CRUD direct sur le Sheet ──
+  // Un atelier avec des beneficiaireIds réels n'a plus besoin de brouillon :
+  // c'est déjà un groupe formé, modifiable ici sans repasser par une
+  // composition. Ça évite la carte "vide" qui restait affichée sans rien
+  // de cliquable une fois le brouillon validé et supprimé.
+  function estGroupeValide(s: Session): boolean {
+    return s.beneficiaireIds.length > 0
+  }
+
+  /** Bénéficiaires actifs pas encore dans CE groupe déjà composé. */
+  function getBenefsLibresLive(atelier: Session): Beneficiaire[] {
+    const placed = new Set(atelier.beneficiaireIds)
+    return beneficiaires
+      .filter(b => b.statut === "actif" && !placed.has(b.id))
+      .sort((a, b) => a.prenom.localeCompare(b.prenom))
+  }
+
+  async function removeMemberLive(atelierId: number, benefId: number) {
+    if (liveUpdatingId !== null) return
+    const atelier = sessions.find(s => s.id === atelierId)
+    if (!atelier) return
+    // Groupe déjà composé = écriture immédiate et réelle dans le Sheet —
+    // on confirme avant de retirer (contrairement à un brouillon, facilement
+    // réversible tant qu'il n'est pas validé).
+    const b = benefById(benefId)
+    const nom = b ? `${b.prenom} ${b.nom}` : (atelier.audience === "parents" ? "ce parent" : "cet élève")
+    if (!confirm(`Retirer ${nom} du groupe « ${atelier.titre} » ?`)) return
+    setLiveUpdatingId(atelierId)
+    try {
+      await onUpdateGroupeValide(atelierId, atelier.beneficiaireIds.filter(id => id !== benefId))
+    } finally {
+      setLiveUpdatingId(null)
+    }
+  }
+
+  async function addMemberLive(atelierId: number, benefId: number) {
+    if (liveUpdatingId !== null) return
+    const atelier = sessions.find(s => s.id === atelierId)
+    if (!atelier || atelier.beneficiaireIds.includes(benefId)) return
+    setLiveUpdatingId(atelierId)
+    try {
+      await onUpdateGroupeValide(atelierId, [...atelier.beneficiaireIds, benefId])
+    } finally {
+      setLiveUpdatingId(null)
+    }
+  }
+
+  async function supprimerGroupeLive(atelierId: number) {
+    if (liveUpdatingId !== null) return
+    if (!confirm("Supprimer définitivement ce groupe ?")) return
+    setLiveUpdatingId(atelierId)
+    try {
+      await onSupprimerGroupeValide(atelierId)
+      setGroupeSlide(false)
+    } finally {
+      setLiveUpdatingId(null)
+    }
+  }
+
+  async function validerComposition(atelier: Session, brouillon: Brouillon) {
+    if (validatingId !== null) return
     const baseId = Date.now()
     // On lit les groupes depuis l'état courant du brouillon, donc tous les
     // ajouts/suppressions manuels et drag-drops faits avant le clic Valider
@@ -266,18 +369,30 @@ export default function BrouillonGroupesTab(props: {
       beneficiaireIds: [...g.beneficiaireIds],
       atelierId: atelier.id,
     }))
-    onGroupesValides(nouveaux, atelier.id)
 
-    // Synchronise la session source : ses beneficiaireIds deviennent
-    // l'union de tous les bénéficiaires placés dans les groupes validés.
-    // C'est cette union qui sera affichée dans la carte de l'atelier
-    // (sous-onglet Ateliers) et utilisée par les pages aval (émargement…).
-    const benefsUnion = Array.from(new Set(nouveaux.flatMap(g => g.beneficiaireIds)))
-    onAtelierBenefsUpdated(atelier.id, benefsUnion)
+    setValidatingId(atelier.id)
+    try {
+      // Attend la création effective des groupes côté Sheet avant de toucher
+      // au brouillon local — sinon un échec réseau efface le brouillon alors
+      // que rien n'a été créé côté serveur (carte qui se vide sans raison).
+      await onGroupesValides(nouveaux, atelier.id)
 
-    supprimerBrouillon(atelier.id)
-    // Bascule sur l'onglet Groupes pour montrer le résultat immédiatement.
-    onValidated?.(nouveaux.length)
+      // Synchronise la session source : ses beneficiaireIds deviennent
+      // l'union de tous les bénéficiaires placés dans les groupes validés.
+      // C'est cette union qui sera affichée dans la carte de l'atelier
+      // (sous-onglet Ateliers) et utilisée par les pages aval (émargement…).
+      const benefsUnion = Array.from(new Set(nouveaux.flatMap(g => g.beneficiaireIds)))
+      onAtelierBenefsUpdated(atelier.id, benefsUnion)
+
+      supprimerBrouillon(atelier.id)
+      // Bascule sur l'onglet Groupes pour montrer le résultat immédiatement.
+      onValidated?.(nouveaux.length)
+    } catch {
+      // Échec de l'écriture Sheet : le brouillon reste intact, on ne bascule
+      // pas d'onglet. Le parent affiche déjà un toast d'erreur.
+    } finally {
+      setValidatingId(null)
+    }
   }
 
   // ── Drag & drop ──
@@ -339,6 +454,16 @@ export default function BrouillonGroupesTab(props: {
         // En mode "disponibilité" (théâtre/marionnettes), les compétences ne sont
         // pas requises : le groupage se fait par créneau, sans notes.
         const pasDeCompetence = atelier.modeGroupage !== "disponibilite" && atelier.competencesCiblees.length === 0
+        // Groupe déjà composé (post-validation, ou membres assignés directement) :
+        // plus de brouillon à générer, on édite ses membres en écriture directe.
+        const groupeValide = estGroupeValide(atelier)
+        const groupeVirtuel: GroupeBrouillon | null = groupeValide ? {
+          id: `live-${atelier.id}`,
+          nom: atelier.titre,
+          cycle: null,
+          beneficiaireIds: atelier.beneficiaireIds,
+          encadrantsRequis: encadrantsRequis(atelier.ratioEncadrement, atelier.beneficiaireIds.length),
+        } : null
 
         return (
           <article
@@ -377,19 +502,26 @@ export default function BrouillonGroupesTab(props: {
               </div>
               {/* Actions */}
               <div className="flex gap-2 shrink-0">
-                {brouillon ? (
+                {groupeValide ? (
+                  <span className="flex items-center gap-1.5 text-[10px] font-medium bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-lg">
+                    <CheckCircle2 size={11} /> Groupe composé
+                  </span>
+                ) : brouillon ? (
                   <>
                     <button
                       onClick={() => ouvrirParametres(atelier)}
-                      className="flex items-center gap-1.5 text-xs font-medium border border-border bg-surface text-foreground px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+                      disabled={validatingId === atelier.id}
+                      className="flex items-center gap-1.5 text-xs font-medium border border-border bg-surface text-foreground px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Settings size={12} /> Régénérer
                     </button>
                     <button
                       onClick={() => validerComposition(atelier, brouillon)}
-                      className="flex items-center gap-1.5 text-xs font-medium bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors"
+                      disabled={validatingId === atelier.id}
+                      className="flex items-center gap-1.5 text-xs font-medium bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-wait"
                     >
-                      <CheckCircle2 size={12} /> Valider la composition
+                      <CheckCircle2 size={12} />
+                      {validatingId === atelier.id ? "Validation en cours…" : "Valider la composition"}
                     </button>
                   </>
                 ) : (
@@ -413,14 +545,24 @@ export default function BrouillonGroupesTab(props: {
 
             {/* Corps */}
             <div className="px-5 py-4">
-              {pasDeCompetence && !brouillon && (
+              {groupeValide && groupeVirtuel && (
+                <GroupeComposeCard
+                  groupe={groupeVirtuel}
+                  audience={atelier.audience}
+                  onOpen={() => ouvrirGroupe(atelier.id, groupeVirtuel.id, true)}
+                  onDelete={() => supprimerGroupeLive(atelier.id)}
+                  deleting={liveUpdatingId === atelier.id}
+                />
+              )}
+
+              {!groupeValide && pasDeCompetence && !brouillon && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
                   <AlertTriangle size={12} />
                   Aucune compétence ciblée n&apos;est cochée pour cet atelier. Édite l&apos;atelier pour en cocher au moins une.
                 </p>
               )}
 
-              {brouillon && brouillon.parametres.erreurs.length > 0 && (
+              {!groupeValide && brouillon && brouillon.parametres.erreurs.length > 0 && (
                 <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
                   <p className="font-semibold mb-1 flex items-center gap-1"><AlertTriangle size={12} /> Génération impossible</p>
                   <ul className="list-disc pl-4">
@@ -429,7 +571,7 @@ export default function BrouillonGroupesTab(props: {
                 </div>
               )}
 
-              {brouillon && brouillon.groupes.length > 0 && (
+              {!groupeValide && brouillon && brouillon.groupes.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {brouillon.groupes.map(g => (
                     <GroupeCard
@@ -443,6 +585,8 @@ export default function BrouillonGroupesTab(props: {
                       onDrop={onDropOnGroupe}
                       onRemoveMember={benefId => removeMember(atelier.id, g.id, benefId)}
                       onAddMember={benefId => addMember(atelier.id, g.id, benefId)}
+                      onOpen={() => ouvrirGroupe(atelier.id, g.id, false)}
+                      onDelete={() => supprimerGroupe(atelier.id, g.id)}
                       benefsLibres={getBenefsLibres(brouillon)}
                     />
                   ))}
@@ -452,7 +596,7 @@ export default function BrouillonGroupesTab(props: {
               {/* Buckets — bénéficiaires non placés.
                   Le bucket "hors tranche" ne fait pas sens pour les adultes
                   (pas de notion d'âge pour les ateliers parents). */}
-              {brouillon && (brouillon.aEvaluer.length + (atelier.audience === "parents" ? 0 : brouillon.horsTranche.length) + brouillon.outliers.length > 0) && (
+              {!groupeValide && brouillon && (brouillon.aEvaluer.length + (atelier.audience === "parents" ? 0 : brouillon.horsTranche.length) + brouillon.outliers.length > 0) && (
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                   {brouillon.aEvaluer.length > 0 && (
                     <BucketCard
@@ -495,7 +639,7 @@ export default function BrouillonGroupesTab(props: {
                 </div>
               )}
 
-              {brouillon && (
+              {!groupeValide && brouillon && (
                 <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-[11px] text-muted">
                   <span className={justRegen === atelier.id ? "text-ateliers-dark font-semibold" : ""}>
                     {justRegen === atelier.id ? "✨ Régénéré à l'instant" : `Généré le ${new Date(brouillon.generedAt).toLocaleString("fr-FR")}`}
@@ -625,6 +769,110 @@ export default function BrouillonGroupesTab(props: {
           <SaveButton />
         </form>
       </SlideOver>
+
+      {/* ── SlideOver détails du groupe (clic sur une carte) ──
+          `live` = groupe déjà composé (atelier réel) : les actions écrivent
+          directement dans le Sheet. Sinon : brouillon local. */}
+      {(() => {
+        const isLive   = viewingGroupe?.live ?? false
+        const atelier  = viewingGroupe ? sessions.find(s => s.id === viewingGroupe.atelierId) : undefined
+        const brouillon = viewingGroupe && !isLive ? brouillons[viewingGroupe.atelierId] : undefined
+        const groupe: GroupeBrouillon | undefined = isLive
+          ? (atelier ? {
+              id: viewingGroupe!.groupeId,
+              nom: atelier.titre,
+              cycle: null,
+              beneficiaireIds: atelier.beneficiaireIds,
+              encadrantsRequis: encadrantsRequis(atelier.ratioEncadrement, atelier.beneficiaireIds.length),
+            } : undefined)
+          : brouillon?.groupes.find(g => g.id === viewingGroupe?.groupeId)
+        const benefsLibresPourAjout = isLive
+          ? (atelier ? getBenefsLibresLive(atelier) : [])
+          : (brouillon ? getBenefsLibres(brouillon) : [])
+        const isParents = atelier?.audience === "parents"
+        const isBusy = isLive && viewingGroupe !== null && liveUpdatingId === viewingGroupe.atelierId
+        return (
+          <SlideOver
+            open={groupeSlide}
+            onClose={() => setGroupeSlide(false)}
+            title={groupe?.nom ?? "Groupe"}
+            subtitle={atelier?.titre}
+            width="md"
+          >
+            {atelier && groupe && viewingGroupe && (isLive || brouillon) && (
+              <div className="flex flex-col gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
+                    {isParents ? "Parents" : "Élèves"} du groupe ({groupe.beneficiaireIds.length})
+                  </p>
+                  {groupe.beneficiaireIds.length === 0 ? (
+                    <p className="text-sm text-muted italic">Aucun membre dans ce groupe.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1.5">
+                      {groupe.beneficiaireIds.map(id => {
+                        const b = benefById(id)
+                        if (!b) return null
+                        return (
+                          <li key={id} className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-border">
+                            <span className="text-sm font-medium text-foreground">{b.prenom} {b.nom}</span>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => isLive
+                                ? removeMemberLive(viewingGroupe.atelierId, id)
+                                : removeMember(viewingGroupe.atelierId, viewingGroupe.groupeId, id)}
+                              className="p-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-wait"
+                              aria-label={`Retirer ${b.prenom} ${b.nom} du groupe`}
+                            >
+                              <X size={13} />
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
+                    Ajouter {isParents ? "un parent" : "un élève"}
+                  </p>
+                  {benefsLibresPourAjout.length === 0 ? (
+                    <p className="text-sm text-muted italic">Aucun bénéficiaire libre à ajouter.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1 max-h-56 overflow-y-auto">
+                      {benefsLibresPourAjout.map(b => (
+                        <li key={b.id}>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => isLive
+                              ? addMemberLive(viewingGroupe.atelierId, b.id)
+                              : addMember(viewingGroupe.atelierId, viewingGroupe.groupeId, b.id)}
+                            className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-wait"
+                          >
+                            <Plus size={12} className="text-muted" />
+                            <span className="font-medium text-foreground">{b.prenom} {b.nom}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-border">
+                  <DeleteButton
+                    label={isBusy ? "Enregistrement en cours…" : "Supprimer ce groupe"}
+                    onClick={() => isLive
+                      ? supprimerGroupeLive(viewingGroupe.atelierId)
+                      : supprimerGroupe(viewingGroupe.atelierId, viewingGroupe.groupeId)}
+                  />
+                </div>
+              </div>
+            )}
+          </SlideOver>
+        )
+      })()}
     </div>
   )
 }
@@ -632,6 +880,54 @@ export default function BrouillonGroupesTab(props: {
 // ──────────────────────────────────────────────
 // Sous-composants
 // ──────────────────────────────────────────────
+
+/** Carte compacte pour un groupe déjà composé (validé) — n'affiche que le
+ *  nom et l'effectif, sans la liste des membres ni les actions d'ajout/retrait,
+ *  pour ne pas surcharger visuellement la liste de l'onglet Brouillon.
+ *  Le détail complet (membres, ajout, retrait, suppression) ne s'ouvre qu'au
+ *  clic, via la même SlideOver que pour un brouillon. Utilisée pour les deux
+ *  audiences (élèves et parents) — le wording/l'icône s'adapte via `audience`. */
+function GroupeComposeCard(props: {
+  groupe: GroupeBrouillon
+  audience: FicheAtelier["audience"]
+  onOpen: () => void
+  /** Suppression directe du groupe (raccourci sans passer par la vue détail). */
+  onDelete: () => void
+  deleting: boolean
+}) {
+  const { groupe, audience, onOpen, onDelete, deleting } = props
+  const isParents = audience === "parents"
+  const Icon = isParents ? UserCheck : GraduationCap
+  const n = groupe.beneficiaireIds.length
+  return (
+    <div className="w-full flex items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 hover:bg-slate-50 hover:border-ateliers/40 transition-colors">
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Voir le détail du groupe"
+        className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <Icon size={14} className={`shrink-0 ${isParents ? "text-communication-dark" : "text-ateliers-dark"}`} />
+          <span className="text-xs font-semibold text-foreground truncate">{groupe.nom}</span>
+        </span>
+        <span className="text-[10px] text-muted shrink-0">
+          {n} {isParents ? "parent" : "bénéficiaire"}{n > 1 ? "s" : ""} · Voir le détail
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleting}
+        title="Supprimer ce groupe"
+        aria-label={`Supprimer le groupe ${groupe.nom}`}
+        className="p-1.5 rounded-lg text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-40 disabled:cursor-wait shrink-0"
+      >
+        <X size={13} />
+      </button>
+    </div>
+  )
+}
 
 function GroupeCard(props: {
   groupe: GroupeBrouillon
@@ -649,10 +945,14 @@ function GroupeCard(props: {
   onAddMember: (benefId: number) => void
   /** Bénéficiaires actifs non placés ailleurs (pool dans la popover). */
   benefsLibres: Beneficiaire[]
+  /** Ouvre la vue détaillée du groupe (clic sur l'en-tête de la carte). */
+  onOpen: () => void
+  /** Supprime ce groupe du brouillon directement (raccourci sans ouvrir le détail). */
+  onDelete: () => void
 }) {
   const {
     groupe, atelierId, audience, dims, benefById, onDragStart, onDrop,
-    onRemoveMember, onAddMember, benefsLibres,
+    onRemoveMember, onAddMember, benefsLibres, onOpen, onDelete,
   } = props
   const [over, setOver] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
@@ -672,7 +972,11 @@ function GroupeCard(props: {
         over ? "border-ateliers ring-2 ring-ateliers/20" : "border-border"
       }`}
     >
-      <header className="px-3 py-2 border-b border-border flex items-center justify-between gap-2 flex-wrap">
+      <header
+        onClick={onOpen}
+        className="px-3 py-2 border-b border-border flex items-center justify-between gap-2 flex-wrap cursor-pointer hover:bg-slate-50"
+        title="Voir le détail du groupe"
+      >
         <div className="min-w-0">
           <p className="text-xs font-semibold text-foreground truncate">{groupe.nom}</p>
           <p className="text-[10px] text-muted">{groupe.beneficiaireIds.length} bénéficiaire{groupe.beneficiaireIds.length > 1 ? "s" : ""}</p>
@@ -683,6 +987,15 @@ function GroupeCard(props: {
               <UserCheck size={9} /> {groupe.encadrantsRequis} encadrant·e{groupe.encadrantsRequis > 1 ? "s" : ""}
             </span>
           )}
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            title="Supprimer ce groupe"
+            aria-label={`Supprimer le groupe ${groupe.nom}`}
+            className="p-1 rounded text-muted hover:bg-red-50 hover:text-red-600"
+          >
+            <X size={12} />
+          </button>
         </div>
       </header>
 

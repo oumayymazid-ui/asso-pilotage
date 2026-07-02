@@ -32,6 +32,12 @@ export interface MembreSheet {
   Date_Inscription?: string
   Nb_Enfants: number | string
   Notes: string
+  // Champs d'inscription (payload de création uniquement, quand Beneficiaire === "Oui")
+  Annee_Scolaire?: string
+  Disponibilite?: string
+  Montant_Adhesion?: string | number
+  Montant_Inscription?: string | number
+  Remarques?: string
 }
 
 export interface FamilleSheet {
@@ -104,6 +110,26 @@ export function getStatut(statut: string): "EN COURS" | "ARRÊTÉ" | "SUSPENDU" 
   if (s.includes("ARRET") || s.includes("ARRÊT")) return "ARRÊTÉ"
   if (s.includes("SUSPEN")) return "SUSPENDU"
   return statut
+}
+
+// Format canonique d'année scolaire : "25-26" (attendu par parseAnneeScolaireEnd
+// et le tri des inscriptions — ne pas écrire d'autre format dans le Sheet)
+export function getCurrentAnneeScolaire(): string {
+  const now = new Date()
+  const baseYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
+  const y1 = String(baseYear % 100).padStart(2, "0")
+  const y2 = String((baseYear + 1) % 100).padStart(2, "0")
+  return `${y1}-${y2}`
+}
+
+export function getAnneeScolaireOptions(): string[] {
+  const now = new Date()
+  const baseYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
+  return [-1, 0, 1].map(offset => {
+    const y1 = String((baseYear + offset) % 100).padStart(2, "0")
+    const y2 = String((baseYear + offset + 1) % 100).padStart(2, "0")
+    return `${y1}-${y2}`
+  })
 }
 
 // ── Appels API ─────────────────────────────────

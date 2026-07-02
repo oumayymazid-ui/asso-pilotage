@@ -30,7 +30,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import {
   Plus, Pencil, CalendarDays, Users, UserCheck, ClipboardCheck,
   X, Columns3, Check, AlertTriangle, Sparkles, Shuffle,
-  ChevronDown, ChevronRight, Search, GraduationCap,
+  ChevronDown, ChevronRight, Search, GraduationCap, Eye, UserCog,
 } from "lucide-react"
 import SlideOver, {
   Field, Input, Select, Textarea, FormRow, SaveButton, DeleteButton,
@@ -57,7 +57,6 @@ interface Session extends FicheAtelier {
   heure: string
   duree: string
   salle: string
-  formatrice: string
   beneficiaireIds: number[]
   benevoleIds: number[]
   intervenantIds: number[] // animateurs (table INTERVENANT)
@@ -162,7 +161,6 @@ function atelierFromSheet(a: AtelierSheet): Session {
     heure: a.Heure_Debut || "",
     duree: "",
     salle: a.Salle || "",
-    formatrice: "",
     beneficiaireIds: a.beneficiaireIds.map(Number).filter(n => !isNaN(n)),
     benevoleIds: [],
     intervenantIds: a.intervenants.map(i => Number(i.ID_Intervenant)).filter(n => !isNaN(n)),
@@ -808,7 +806,7 @@ function EditableList(props: {
 const emptySession = (): Omit<Session, "id"> => ({
   categorie: "", groupe: "",
   titre: "", description: "", date: new Date().toISOString().split("T")[0], dateFin: "",
-  heure: "14h00", duree: "2h", salle: "", formatrice: "",
+  heure: "14h00", duree: "2h", salle: "",
   beneficiaireIds: [], benevoleIds: [], intervenantIds: [], statut: "planifié",
   ...emptyFiche(),
 })
@@ -818,28 +816,38 @@ const emptyGroupe = (): Omit<Groupe, "id"> => ({
   atelierId: null,
 })
 
+interface IntervenantForm {
+  Nom: string
+  Prenom: string
+  Type: string
+  Email: string
+  Telephone: string
+  Statut: string
+}
+const emptyIntervenantForm = (): IntervenantForm => ({
+  Nom: "", Prenom: "", Type: "", Email: "", Telephone: "", Statut: "actif",
+})
+
 // ══════════════════════════════════════════════
 // ONGLET ATELIERS
 // ══════════════════════════════════════════════
 function AteliersTab({
-  sessions, beneficiaires, benevoles, groupes, onEdit,
+  sessions, beneficiaires, benevoles, groupes, onEdit, onView, onDelete,
 }: {
   sessions: Session[]
   beneficiaires: Beneficiaire[]
   benevoles: typeof benevolesMock.liste
   groupes: Groupe[]
   onEdit: (s: Session) => void
+  onView: (s: Session) => void
+  onDelete: (id: number) => void
 }) {
   // ── Filtres + recherche ──
   const [search, setSearch]            = useState("")
-  const [filterFormatrice, setFilterFormatrice] = useState<string>("tous")
   const [filterBenevole, setFilterBenevole]     = useState<string>("tous")
   const [filterDate, setFilterDate]    = useState<"tous" | "semaine" | "mois" | "moisProchain">("tous")
 
-  // Options déduites des données : formatrices uniques + bénévoles uniques.
-  const formatricesUniques = Array.from(new Set(
-    sessions.map(s => s.formatrice).filter(f => f.trim().length > 0),
-  )).sort((a, b) => a.localeCompare(b))
+  // Options déduites des données : bénévoles uniques.
   const benevolesPresents = Array.from(new Set(
     sessions.flatMap(s => s.benevoleIds),
   ))
@@ -868,7 +876,6 @@ function AteliersTab({
   const q = search.trim().toLowerCase()
   const matches = (s: Session) => {
     if (q && !s.titre.toLowerCase().includes(q) && !s.description.toLowerCase().includes(q)) return false
-    if (filterFormatrice !== "tous" && s.formatrice !== filterFormatrice) return false
     if (filterBenevole !== "tous" && !s.benevoleIds.includes(Number(filterBenevole))) return false
     if (!matchDate(new Date(s.date))) return false
     return true
@@ -880,9 +887,9 @@ function AteliersTab({
   const upcoming = sorted.filter(s => s.statut !== "terminé" && s.statut !== "annulé")
   const past     = sorted.filter(s => s.statut === "terminé" || s.statut === "annulé")
 
-  const filtreActif = q !== "" || filterFormatrice !== "tous" || filterBenevole !== "tous" || filterDate !== "tous"
+  const filtreActif = q !== "" || filterBenevole !== "tous" || filterDate !== "tous"
   function resetFiltres() {
-    setSearch(""); setFilterFormatrice("tous"); setFilterBenevole("tous"); setFilterDate("tous")
+    setSearch(""); setFilterBenevole("tous"); setFilterDate("tous")
   }
 
   // État "groupes dépliés" géré au niveau du parent pour ne pas se perdre
@@ -955,7 +962,6 @@ function AteliersTab({
           <div className="flex items-center gap-3 mt-1.5 flex-wrap text-xs text-muted">
             <span>⏱ {s.duree}</span>
             {s.salle     && <span>📍 {s.salle}</span>}
-            {s.formatrice && <span>👩‍🏫 {s.formatrice}</span>}
             {s.periode && (
               <span className={`${chipText} font-medium flex items-center gap-1`}>
                 <CalendarDays size={10} /> {s.periode}
@@ -1051,8 +1057,14 @@ function AteliersTab({
               <ClipboardCheck size={11} /> Émarger
             </Link>
           )}
-          <button onClick={() => onEdit(s)} className="p-1.5 rounded-lg hover:bg-slate-100 text-muted">
+          <button onClick={() => onView(s)} className="p-1.5 rounded-lg hover:bg-slate-100 text-muted" aria-label="Voir les détails">
+            <Eye size={13} />
+          </button>
+          <button onClick={() => onEdit(s)} className="p-1.5 rounded-lg hover:bg-slate-100 text-muted" aria-label="Modifier">
             <Pencil size={13} />
+          </button>
+          <button onClick={() => onDelete(s.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted hover:text-red-600" aria-label="Supprimer">
+            <X size={13} />
           </button>
         </div>
       </li>
@@ -1083,16 +1095,6 @@ function AteliersTab({
             </button>
           )}
         </div>
-        <select
-          value={filterFormatrice}
-          onChange={e => setFilterFormatrice(e.target.value)}
-          className="text-sm rounded-xl border border-border bg-surface px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ateliers/30"
-        >
-          <option value="tous">Toutes les formatrices</option>
-          {formatricesUniques.map(f => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
         <select
           value={filterBenevole}
           onChange={e => setFilterBenevole(e.target.value)}
@@ -1167,11 +1169,13 @@ function AteliersTab({
 // (Categorie). Cliquer sur un groupe ouvre l'atelier correspondant.
 // ══════════════════════════════════════════════
 function GroupesTab({
-  sessions, beneficiaires, onEdit,
+  sessions, beneficiaires, onEdit, onView, onDelete,
 }: {
   sessions: Session[]
   beneficiaires: Beneficiaire[]
   onEdit: (s: Session) => void
+  onView: (s: Session) => void
+  onDelete: (id: number) => void
 }) {
   const [search, setSearch] = useState("")
 
@@ -1266,7 +1270,7 @@ function GroupesTab({
                     return (
                       <li
                         key={s.id}
-                        onClick={() => onEdit(s)}
+                        onClick={() => onView(s)}
                         className="px-4 py-3 flex items-center gap-4 hover:bg-white/60 cursor-pointer group/row"
                       >
                         <div className="flex-1 min-w-0">
@@ -1310,6 +1314,14 @@ function GroupesTab({
                         >
                           <Pencil size={13} />
                         </button>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); onDelete(s.id) }}
+                          className="p-1.5 rounded-lg hover:bg-white text-muted hover:text-red-600 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0"
+                          aria-label="Supprimer le groupe"
+                        >
+                          <X size={13} />
+                        </button>
                       </li>
                     )
                   })}
@@ -1324,12 +1336,117 @@ function GroupesTab({
 }
 
 // ══════════════════════════════════════════════
+// ONGLET GESTION DES INTERVENANTS — lecture/écriture table INTERVENANT
+// ══════════════════════════════════════════════
+function IntervenantsTab({
+  intervenants, onEdit, onNew,
+}: {
+  intervenants: IntervenantSheet[]
+  onEdit: (iv: IntervenantSheet) => void
+  onNew: () => void
+}) {
+  const [search, setSearch] = useState("")
+  const q = search.trim().toLowerCase()
+  const filtered = intervenants
+    .filter(iv => !q || `${iv.Prenom} ${iv.Nom} ${iv.Type}`.toLowerCase().includes(q))
+    .sort((a, b) => `${a.Prenom} ${a.Nom}`.localeCompare(`${b.Prenom} ${b.Nom}`))
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-48">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            placeholder="Rechercher un intervenant (nom, type…)"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-benevoles/30"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+              aria-label="Effacer la recherche"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        {q !== "" && (
+          <span className="text-xs text-muted">{filtered.length} résultat{filtered.length > 1 ? "s" : ""}</span>
+        )}
+      </div>
+
+      {intervenants.length === 0 ? (
+        <div className="text-center py-16 bg-surface rounded-xl border border-border">
+          <div className="mx-auto mb-4 inline-flex p-3 rounded-full bg-slate-50">
+            <UserCog size={32} className="text-slate-300" />
+          </div>
+          <p className="font-semibold text-foreground">Aucun intervenant</p>
+          <p className="text-sm text-muted mt-1 max-w-md mx-auto">
+            Ajoute un premier bénévole, stagiaire ou animateur pour pouvoir le rattacher aux ateliers.
+          </p>
+          <button
+            onClick={onNew}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors"
+          >
+            <Plus size={14} /> Nouvel intervenant
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-sm text-muted py-12 italic">Aucun intervenant ne correspond à la recherche.</p>
+      ) : (
+        <ul className="bg-surface rounded-xl border border-border divide-y divide-border overflow-hidden">
+          {filtered.map(iv => (
+            <li
+              key={iv.ID_Intervenant}
+              onClick={() => onEdit(iv)}
+              className="px-5 py-3.5 flex items-center gap-4 hover:bg-slate-50 cursor-pointer group"
+            >
+              <div className="w-9 h-9 rounded-full bg-benevoles-light flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-benevoles-dark">{initials(iv.Prenom, iv.Nom)}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{iv.Prenom} {iv.Nom}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  {iv.Type && (
+                    <span className="text-[10px] bg-benevoles-light text-benevoles-dark px-1.5 py-0.5 rounded-full">{iv.Type}</span>
+                  )}
+                  {iv.Email && <span className="text-[11px] text-muted truncate">{iv.Email}</span>}
+                  {iv.Telephone && <span className="text-[11px] text-muted">{iv.Telephone}</span>}
+                </div>
+              </div>
+              <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                iv.Statut === "inactif" ? "bg-slate-100 text-slate-500" : "bg-green-50 text-green-700"
+              }`}>
+                {iv.Statut || "actif"}
+              </span>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onEdit(iv) }}
+                className="p-1.5 rounded-lg hover:bg-white text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                aria-label={`Modifier ${iv.Prenom} ${iv.Nom}`}
+              >
+                <Pencil size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
 // PAGE PRINCIPALE
 // ══════════════════════════════════════════════
 const TABS = [
-  { id: "ateliers",  label: "Ateliers",         icon: CalendarDays },
-  { id: "brouillon", label: "Brouillon groupes", icon: Shuffle },
-  { id: "groupes",   label: "Groupes",          icon: Columns3 },
+  { id: "ateliers",      label: "Ateliers",                icon: CalendarDays },
+  { id: "brouillon",     label: "Brouillon groupes",       icon: Shuffle },
+  { id: "groupes",       label: "Groupes",                 icon: Columns3 },
+  { id: "intervenants",  label: "Gestion des intervenants", icon: UserCog },
 ] as const
 
 type TabId = (typeof TABS)[number]["id"]
@@ -1362,6 +1479,11 @@ export default function AteliersPage() {
   const [sessionSlide, setSessionSlide] = useState(false)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
   const [sessionForm, setSessionForm]   = useState<Omit<Session, "id">>(emptySession())
+  const [detailSlide, setDetailSlide]   = useState(false)
+  const [viewingSession, setViewingSession] = useState<Session | null>(null)
+  /** Brouillon des membres édité depuis la vue « Détails » (onglet Groupes) —
+   *  permet d'ajouter/retirer des élèves sans passer par le formulaire complet. */
+  const [groupMembersDraft, setGroupMembersDraft] = useState<number[]>([])
 
   // ── Groupes ──
   const [groupes, setGroupes]           = useState<Groupe[]>(ateliersMock.groupes as Groupe[])
@@ -1377,6 +1499,16 @@ export default function AteliersPage() {
 
   // ── Intervenants / animateurs (depuis le Sheet, table INTERVENANT) ──
   const [intervenants, setIntervenants] = useState<IntervenantSheet[]>([])
+  const [intervenantSlide, setIntervenantSlide] = useState(false)
+  const [editingIntervenant, setEditingIntervenant] = useState<IntervenantSheet | null>(null)
+  const [intervenantForm, setIntervenantForm] = useState(emptyIntervenantForm())
+
+  function reloadIntervenants() {
+    return fetch("/api/sheets?action=getIntervenants")
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((rows: IntervenantSheet[]) => setIntervenants(rows))
+      .catch(() => setIntervenants([]))
+  }
 
   // ── Membres (liste éditable côté /membres, on lit depuis localStorage pour
   //    refléter les ajouts/modifs faits sur l'autre page) ──
@@ -1395,8 +1527,18 @@ export default function AteliersPage() {
   function reloadAteliers() {
     setLoadingAteliers(true)
     return fetch("/api/sheets?action=getAteliers")
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((rows: AtelierSheet[]) => { setSessions(rows.map(atelierFromSheet)); setErreurAteliers(null) })
+      .then(r => (r.ok ? r.json() : r.json().then(
+        (body: { error?: string }) => Promise.reject(new Error(body.error || `HTTP ${r.status}`)),
+        () => Promise.reject(new Error(`HTTP ${r.status}`))
+      )))
+      .then((rows: AtelierSheet[]) => {
+        const sessions = rows.map(atelierFromSheet)
+        setSessions(sessions)
+        // Cross-module : Communication lit "asso-ateliers-sessions" en lecture seule
+        // pour préremplir les participants d'un post lié à un atelier.
+        localStorage.setItem(S_SESSIONS, JSON.stringify(sessions))
+        setErreurAteliers(null)
+      })
       .catch((e: Error) => { setSessions([]); setErreurAteliers(e.message) })
       .finally(() => setLoadingAteliers(false))
   }
@@ -1411,10 +1553,7 @@ export default function AteliersPage() {
       .then((rows: BeneficiaireSheet[]) => setBeneficiaires(rows.map(beneficiaireFromSheet)))
       .catch(() => setBeneficiaires([]))
     // ── Intervenants : lecture depuis Google Sheets (table INTERVENANT) — étape 4a.
-    fetch("/api/sheets?action=getIntervenants")
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((rows: IntervenantSheet[]) => setIntervenants(rows))
-      .catch(() => setIntervenants([]))
+    reloadIntervenants()
     // Migration auto des groupes : les anciens enregistrements n'ont pas de
     // champ atelierId, on le force à null pour qu'ils restent affichés dans
     // le sous-onglet Groupes mais pas attachés à un atelier.
@@ -1438,9 +1577,37 @@ export default function AteliersPage() {
   }
   function openEditSession(s: Session) {
     refreshMembres()
+    setDetailSlide(false)
     setEditingSession(s)
     setSessionForm({ ...s, beneficiaireIds: [...s.beneficiaireIds], benevoleIds: [...s.benevoleIds] })
     setSessionSlide(true)
+  }
+  function openViewSession(s: Session) {
+    refreshMembres()
+    setViewingSession(s)
+    setGroupMembersDraft([...s.beneficiaireIds])
+    setDetailSlide(true)
+  }
+  function toggleGroupMember(id: number) {
+    setGroupMembersDraft(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
+  }
+  /** Enregistre le brouillon de membres édité depuis la vue « Détails » —
+   *  ré-utilise atelierPayload pour ne pas écraser les autres champs de l'atelier. */
+  async function handleUpdateGroupMembers() {
+    if (!viewingSession) return
+    const payload = atelierPayload({ ...viewingSession, beneficiaireIds: groupMembersDraft })
+    try {
+      const res = await fetch("/api/sheets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "updateAtelier", idAtelier: String(viewingSession.id), ...payload }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await reloadAteliers()
+      setViewingSession(v => v ? { ...v, beneficiaireIds: [...groupMembersDraft] } : v)
+      setToast({ message: "Membres du groupe mis à jour dans le Sheet." })
+    } catch {
+      setToast({ message: "Erreur : la mise à jour des membres a échoué." })
+    }
   }
   /** Construit le payload d'écriture ATELIER (colonnes du Sheet) depuis le formulaire. */
   function atelierPayload(f: Omit<Session, "id">) {
@@ -1488,19 +1655,58 @@ export default function AteliersPage() {
       setToast({ message: "Erreur : l'enregistrement dans le Sheet a échoué." })
     }
   }
-  async function handleDeleteSession() {
-    if (!editingSession) return
+  async function handleDeleteAtelier(id: number) {
+    if (!confirm("Supprimer définitivement cet atelier ?")) return
     try {
       const res = await fetch("/api/sheets", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "deleteAtelier", idAtelier: String(editingSession.id) }),
+        body: JSON.stringify({ action: "deleteAtelier", idAtelier: String(id) }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setSessionSlide(false)
+      setDetailSlide(false)
+      // Détache les groupes locaux (sous-onglet Groupes, créés à la main) qui
+      // référençaient cet atelier — sinon ils gardent un atelierId fantôme.
+      persistGroupes(groupes.map(g => g.atelierId === id ? { ...g, atelierId: null } : g))
       await reloadAteliers()
       setToast({ message: "Atelier supprimé du Sheet." })
     } catch {
       setToast({ message: "Erreur : la suppression a échoué." })
+    }
+  }
+  /** CRUD direct (sous-onglet Brouillon groupes) sur un groupe déjà composé —
+   *  écrit ses membres dans le Sheet sans passer par un brouillon local.
+   *  Rejette en cas d'échec pour que l'appelant ne referme pas l'UI à tort. */
+  async function updateGroupeValideMembers(atelierId: number, beneficiaireIds: number[]) {
+    const source = sessions.find(s => s.id === atelierId)
+    if (!source) throw new Error("Atelier introuvable.")
+    const payload = atelierPayload({ ...source, beneficiaireIds })
+    try {
+      const res = await fetch("/api/sheets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "updateAtelier", idAtelier: String(atelierId), ...payload }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await reloadAteliers()
+      setToast({ message: "Membres du groupe mis à jour dans le Sheet." })
+    } catch (e) {
+      setToast({ message: "Erreur : la mise à jour des membres a échoué." })
+      throw e
+    }
+  }
+  /** Supprime définitivement un groupe déjà composé (sous-onglet Brouillon groupes). */
+  async function deleteGroupeValide(atelierId: number) {
+    try {
+      const res = await fetch("/api/sheets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "deleteAtelier", idAtelier: String(atelierId) }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await reloadAteliers()
+      setToast({ message: "Groupe supprimé du Sheet." })
+    } catch (e) {
+      setToast({ message: "Erreur : la suppression a échoué." })
+      throw e
     }
   }
   function toggleBenefInSession(id: number) {
@@ -1588,6 +1794,55 @@ export default function AteliersPage() {
     persistGroupes(groupes.map(g => g.id === groupeId ? { ...g, beneficiaireIds } : g))
   }
 
+  // ── Intervenants CRUD (table INTERVENANT du Sheet) ──
+  function openNewIntervenant() {
+    setEditingIntervenant(null)
+    setIntervenantForm(emptyIntervenantForm())
+    setIntervenantSlide(true)
+  }
+  function openEditIntervenant(iv: IntervenantSheet) {
+    setEditingIntervenant(iv)
+    setIntervenantForm({
+      Nom: iv.Nom, Prenom: iv.Prenom, Type: iv.Type,
+      Email: iv.Email, Telephone: iv.Telephone, Statut: iv.Statut || "actif",
+    })
+    setIntervenantSlide(true)
+  }
+  async function handleSaveIntervenant() {
+    const body = editingIntervenant
+      ? { action: "updateIntervenant", idIntervenant: editingIntervenant.ID_Intervenant, data: intervenantForm }
+      : { action: "addIntervenant", data: intervenantForm }
+    try {
+      const res = await fetch("/api/sheets", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setIntervenantSlide(false)
+      await reloadIntervenants()
+      setToast({ message: editingIntervenant ? "Intervenant mis à jour dans le Sheet." : "Intervenant créé dans le Sheet." })
+    } catch {
+      setToast({ message: "Erreur : l'enregistrement dans le Sheet a échoué." })
+    }
+  }
+  async function handleDeleteIntervenant(id: string) {
+    if (!confirm("Supprimer définitivement cet intervenant ? Il sera retiré de tous les ateliers où il est rattaché.")) return
+    try {
+      const res = await fetch("/api/sheets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "deleteIntervenant", idIntervenant: id }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setIntervenantSlide(false)
+      await reloadIntervenants()
+      // Rafraîchit les ateliers : leurs intervenantIds dérivés d'ATELIER_PARTICIPANT
+      // ont changé côté Sheet suite à la cascade de suppression.
+      await reloadAteliers()
+      setToast({ message: "Intervenant supprimé du Sheet." })
+    } catch {
+      setToast({ message: "Erreur : la suppression a échoué." })
+    }
+  }
+
   // ── Filtrage par audience (Lot D) ──
   // Une session a un champ `audience` ; on filtre toutes les vues par celui-ci.
   // Pour les groupes : on garde ceux dont l'atelier rattaché correspond à
@@ -1638,6 +1893,14 @@ export default function AteliersPage() {
               className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors"
             >
               <Plus size={14} /> Nouvel atelier
+            </button>
+          )}
+          {tab === "intervenants" && (
+            <button
+              onClick={openNewIntervenant}
+              className="flex items-center gap-1.5 text-sm font-medium bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors"
+            >
+              <Plus size={14} /> Nouvel intervenant
             </button>
           )}
         </div>
@@ -1697,6 +1960,8 @@ export default function AteliersPage() {
             benevoles={benevoles}
             groupes={groupesForAudience}
             onEdit={openEditSession}
+            onView={openViewSession}
+            onDelete={handleDeleteAtelier}
           />
         )
       )}
@@ -1708,6 +1973,8 @@ export default function AteliersPage() {
             sessions={sessionsForAudience}
             beneficiaires={beneficiaires}
             onEdit={openEditSession}
+            onView={openViewSession}
+            onDelete={handleDeleteAtelier}
           />
         )
       )}
@@ -1720,7 +1987,7 @@ export default function AteliersPage() {
             // composé en une nouvelle ligne ATELIER (même type/dates/compétences
             // que l'atelier "type" d'origine), puis on supprime l'atelier "type".
             const source = sessions.find(s => s.id === atelierId)
-            if (!source) return
+            if (!source) throw new Error("Atelier source introuvable.")
             try {
               for (let i = 0; i < nouveaux.length; i++) {
                 const g = nouveaux[i]
@@ -1742,8 +2009,11 @@ export default function AteliersPage() {
               })
               await reloadAteliers()
               setToast({ message: `${nouveaux.length} groupe${nouveaux.length > 1 ? "s" : ""} créé${nouveaux.length > 1 ? "s" : ""} dans le Sheet.` })
-            } catch {
+            } catch (e) {
+              // Rethrow : le brouillon (sous-onglet Brouillon) doit rester intact
+              // et ne pas basculer d'onglet tant que l'écriture Sheet n'a pas réussi.
               setToast({ message: "Erreur lors de la création des groupes dans le Sheet." })
+              throw e
             }
           }}
           onAtelierBenefsUpdated={() => {
@@ -1754,8 +2024,199 @@ export default function AteliersPage() {
             // Bascule sur l'onglet Ateliers pour voir les lignes-groupes créées.
             setTab("ateliers")
           }}
+          onUpdateGroupeValide={updateGroupeValideMembers}
+          onSupprimerGroupeValide={deleteGroupeValide}
         />
       )}
+      {tab === "intervenants" && (
+        <IntervenantsTab intervenants={intervenants} onEdit={openEditIntervenant} onNew={openNewIntervenant} />
+      )}
+
+      {/* ════════════════════════════════════════
+          SLIDEOVER — Détails de l'atelier (lecture seule)
+      ════════════════════════════════════════ */}
+      <SlideOver
+        open={detailSlide}
+        onClose={() => setDetailSlide(false)}
+        title="Détails de l'atelier"
+        width="lg"
+      >
+        {viewingSession && (() => {
+          const s = viewingSession
+          const bvls = s.benevoleIds
+            .map(id => benevoles.find(bv => bv.id === id))
+            .filter((bv): bv is (typeof benevoles)[0] => Boolean(bv))
+          const intervs = s.intervenantIds
+            .map(id => intervenants.find(iv => Number(iv.ID_Intervenant) === id))
+            .filter((iv): iv is IntervenantSheet => Boolean(iv))
+          const groupesAtelier = groupes.filter(g => g.atelierId === s.id)
+          return (
+            <div className="flex flex-col gap-5">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-semibold text-foreground">
+                    {s.titre || [s.categorie, s.groupe].filter(Boolean).join(" · ")}
+                  </h3>
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${statutSessionStyle[s.statut]}`}>
+                    {s.statut}
+                  </span>
+                </div>
+                <p className="text-xs text-muted mt-0.5">
+                  {s.audience === "parents" ? "Parents" : "Élèves"} · {s.categorie}{s.groupe && ` · ${s.groupe}`}
+                </p>
+                {s.description && <p className="text-sm text-foreground mt-2">{s.description}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-[11px] text-muted">Date{s.dateFin ? " de début" : ""}</p>
+                  <p className="text-foreground">{s.date || "—"}</p>
+                </div>
+                {s.dateFin && (
+                  <div>
+                    <p className="text-[11px] text-muted">Date de fin</p>
+                    <p className="text-foreground">{s.dateFin}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[11px] text-muted">Heure</p>
+                  <p className="text-foreground">{s.heure || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted">Durée</p>
+                  <p className="text-foreground">{s.duree || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted">Salle</p>
+                  <p className="text-foreground">{s.salle || "—"}</p>
+                </div>
+                {s.periode && (
+                  <div className="col-span-2">
+                    <p className="text-[11px] text-muted">Période</p>
+                    <p className="text-foreground">{s.periode}</p>
+                  </div>
+                )}
+              </div>
+
+              {s.competencesCiblees.length > 0 && (
+                <div>
+                  <p className="text-[11px] text-muted mb-1.5">Compétences ciblées</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {s.competencesCiblees.map(c => {
+                      const t = THEMATIQUES.find(x => x.key === c)
+                      return t ? (
+                        <span key={c} className="text-[11px] bg-ateliers-light text-ateliers-dark px-2 py-0.5 rounded-full font-medium">
+                          {t.short}
+                        </span>
+                      ) : null
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {(s.taches.length > 0 || s.besoins.length > 0 || s.etapes.length > 0) && (
+                <div className="grid grid-cols-1 gap-3">
+                  {s.taches.length > 0 && (
+                    <div>
+                      <p className="text-[11px] text-muted mb-1">Tâches</p>
+                      <ul className="text-sm text-foreground list-disc list-inside space-y-0.5">
+                        {s.taches.map((t, i) => <li key={i}>{t}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {s.besoins.length > 0 && (
+                    <div>
+                      <p className="text-[11px] text-muted mb-1">Besoins</p>
+                      <ul className="text-sm text-foreground list-disc list-inside space-y-0.5">
+                        {s.besoins.map((t, i) => <li key={i}>{t}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {s.etapes.length > 0 && (
+                    <div>
+                      <p className="text-[11px] text-muted mb-1">Étapes</p>
+                      <ul className="text-sm text-foreground list-disc list-inside space-y-0.5">
+                        {s.etapes.map((t, i) => <li key={i}>{t}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <p className="text-[11px] text-muted mb-1.5">
+                  {s.audience === "parents" ? "Parents" : "Élèves"} du groupe ({groupMembersDraft.length})
+                </p>
+                <SelecteurBeneficiaires
+                  options={beneficiaires.filter(b => b.type === (s.audience === "parents" ? "parent" : "eleve"))}
+                  selectedIds={groupMembersDraft}
+                  onToggle={toggleGroupMember}
+                  placeholder={s.audience === "parents" ? "Sélectionner des parents…" : "Sélectionner des élèves…"}
+                />
+                <button
+                  type="button"
+                  onClick={handleUpdateGroupMembers}
+                  className="mt-2 w-full text-xs font-medium bg-ateliers-light text-ateliers-dark py-2 rounded-lg hover:bg-ateliers/20 transition-colors"
+                >
+                  Enregistrer les membres
+                </button>
+              </div>
+
+              <div>
+                <p className="text-[11px] text-muted mb-1.5">Intervenants ({intervs.length})</p>
+                {intervs.length === 0 ? (
+                  <p className="text-sm text-muted italic">Aucun intervenant rattaché.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {intervs.map(iv => (
+                      <span key={iv.ID_Intervenant} className="text-[11px] bg-benevoles-light text-benevoles-dark px-2 py-0.5 rounded-full">
+                        {iv.Prenom} {iv.Nom}{iv.Type && ` · ${iv.Type}`}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {bvls.length > 0 && (
+                <div>
+                  <p className="text-[11px] text-muted mb-1.5">Bénévoles ({bvls.length})</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {bvls.map(bv => (
+                      <span key={bv.id} className="text-[11px] bg-benevoles-light text-benevoles-dark px-2 py-0.5 rounded-full">
+                        {bv.nom}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupesAtelier.length > 0 && (
+                <div>
+                  <p className="text-[11px] text-muted mb-1.5">Groupes rattachés ({groupesAtelier.length})</p>
+                  <div className="flex flex-col gap-1.5">
+                    {groupesAtelier.map(g => (
+                      <span key={g.id} className="text-sm text-foreground bg-slate-50 border border-border rounded-lg px-3 py-1.5">
+                        {g.nom}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => openEditSession(s)}
+                  className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-700 transition-colors"
+                >
+                  Modifier
+                </button>
+                <DeleteButton onClick={() => handleDeleteAtelier(s.id)} />
+              </div>
+            </div>
+          )
+        })()}
+      </SlideOver>
 
       {/* ════════════════════════════════════════
           SLIDEOVER — Atelier / Session
@@ -1848,13 +2309,6 @@ export default function AteliersPage() {
             </Field>
           </FormRow>
           <FormRow>
-            <Field label="Formatrice">
-              <Input
-                placeholder="Somayeh"
-                value={sessionForm.formatrice}
-                onChange={e => setSessionForm(f => ({ ...f, formatrice: e.target.value }))}
-              />
-            </Field>
             <Field label="Statut">
               <Select
                 value={sessionForm.statut}
@@ -1866,16 +2320,15 @@ export default function AteliersPage() {
                 <option>annulé</option>
               </Select>
             </Field>
+            {/* ── Période concernée (champ libre) ── */}
+            <Field label="Période concernée">
+              <Input
+                placeholder="Ex : Vacances de printemps 2026"
+                value={sessionForm.periode}
+                onChange={e => setSessionForm(f => ({ ...f, periode: e.target.value }))}
+              />
+            </Field>
           </FormRow>
-
-          {/* ── Période concernée (champ libre) ── */}
-          <Field label="Période concernée">
-            <Input
-              placeholder="Ex : Vacances de printemps 2026"
-              value={sessionForm.periode}
-              onChange={e => setSessionForm(f => ({ ...f, periode: e.target.value }))}
-            />
-          </Field>
 
           {/* ── Couleur de l'atelier (Lot E — vue Groupes) ── */}
           <Field label="Couleur de l'atelier">
@@ -2073,7 +2526,7 @@ export default function AteliersPage() {
           })()}
 
           <SaveButton />
-          {editingSession && <DeleteButton onClick={handleDeleteSession} />}
+          {editingSession && <DeleteButton onClick={() => handleDeleteAtelier(editingSession.id)} />}
         </form>
       </SlideOver>
 
@@ -2154,6 +2607,71 @@ export default function AteliersPage() {
 
           <SaveButton />
           {editingGroupe && <DeleteButton onClick={handleDeleteGroupe} />}
+        </form>
+      </SlideOver>
+
+      {/* ════════════════════════════════════════
+          SLIDEOVER — Intervenant (table INTERVENANT du Sheet)
+      ════════════════════════════════════════ */}
+      <SlideOver
+        open={intervenantSlide}
+        onClose={() => setIntervenantSlide(false)}
+        title={editingIntervenant ? "Modifier l'intervenant" : "Nouvel intervenant"}
+        width="md"
+      >
+        <form onSubmit={e => { e.preventDefault(); handleSaveIntervenant() }} className="flex flex-col gap-4">
+          <FormRow>
+            <Field label="Prénom" required>
+              <Input
+                value={intervenantForm.Prenom}
+                onChange={e => setIntervenantForm(f => ({ ...f, Prenom: e.target.value }))}
+              />
+            </Field>
+            <Field label="Nom" required>
+              <Input
+                value={intervenantForm.Nom}
+                onChange={e => setIntervenantForm(f => ({ ...f, Nom: e.target.value }))}
+              />
+            </Field>
+          </FormRow>
+          <FormRow>
+            <Field label="Type">
+              <Input
+                placeholder="Bénévole, Stagiaire, Salarié·e…"
+                value={intervenantForm.Type}
+                onChange={e => setIntervenantForm(f => ({ ...f, Type: e.target.value }))}
+              />
+            </Field>
+            <Field label="Statut">
+              <Select
+                value={intervenantForm.Statut}
+                onChange={e => setIntervenantForm(f => ({ ...f, Statut: e.target.value }))}
+              >
+                <option value="actif">Actif</option>
+                <option value="inactif">Inactif</option>
+              </Select>
+            </Field>
+          </FormRow>
+          <FormRow>
+            <Field label="Email">
+              <Input
+                type="email"
+                value={intervenantForm.Email}
+                onChange={e => setIntervenantForm(f => ({ ...f, Email: e.target.value }))}
+              />
+            </Field>
+            <Field label="Téléphone">
+              <Input
+                value={intervenantForm.Telephone}
+                onChange={e => setIntervenantForm(f => ({ ...f, Telephone: e.target.value }))}
+              />
+            </Field>
+          </FormRow>
+
+          <SaveButton />
+          {editingIntervenant && (
+            <DeleteButton onClick={() => handleDeleteIntervenant(editingIntervenant.ID_Intervenant)} />
+          )}
         </form>
       </SlideOver>
 

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   Heart, LogOut, UserCircle,
-  UserCheck, BarChart2, ClipboardCheck, Euro, BookOpen, Megaphone, UserCog, GraduationCap,
+  UserCheck, BarChart2, ClipboardCheck, Euro, BookOpen, Megaphone, UserCog, GraduationCap, StickyNote,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { moduleForPath } from "@/lib/modules"
@@ -31,6 +31,7 @@ const modules: ModuleCard[] = [
   { href: "/finances",      label: "Finances",      sub: "Financements, inscriptions",     icon: Euro,           accent: "bg-finances-light",     iconClass: "text-finances-dark" },
   { href: "/ateliers",      label: "Ateliers",      sub: "Planning, groupes",              icon: BookOpen,       accent: "bg-ateliers-light",     iconClass: "text-ateliers-dark" },
   { href: "/positionnement", label: "Positionnement", sub: "Génération de tests",          icon: GraduationCap,  accent: "bg-positionnement-light", iconClass: "text-positionnement-dark" },
+  { href: "/notes",         label: "Notes",         sub: "Saisie des évaluations",         icon: StickyNote,     accent: "bg-positionnement-light", iconClass: "text-positionnement-dark" },
   { href: "/communication", label: "Communication", sub: "Calendrier, kanban, IA",         icon: Megaphone,      accent: "bg-communication-light", iconClass: "text-communication-dark" },
   { href: "/membres",       label: "Équipe",        sub: "Annuaire de l'équipe",           icon: UserCog,        accent: "bg-slate-100",          iconClass: "text-slate-700" },
   { href: "/compte",        label: "Mon compte",    sub: "Profil, comptes",                icon: UserCircle,     accent: "bg-slate-100",          iconClass: "text-slate-700" },

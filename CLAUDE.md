@@ -5,7 +5,7 @@
 
 ## Ce qu'est ce projet
 
-Dashboard de pilotage pour une association de formation numérique (Ada Tech School).
+Dashboard de pilotage pour une association de formation numérique.
 **SaaS Next.js** — interface uniquement.
 Persistance : `localStorage` pour la plupart des modules. **Exception : le module Familles** est connecté à **Google Sheets** (API REST v4 côté serveur) — voir section "Backend Familles".
 

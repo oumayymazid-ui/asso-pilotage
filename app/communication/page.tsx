@@ -69,6 +69,14 @@ interface SessionSlim {
   titre: string
   date: string
   beneficiaireIds: number[]
+  benevoleIds?: number[]
+  intervenantIds?: number[]
+}
+
+interface IntervenantSlim {
+  ID_Intervenant: string
+  Nom: string
+  Prenom: string
 }
 
 interface BenefSlim {
@@ -544,6 +552,7 @@ export default function CommunicationPage() {
 
   const [sessions, setSessions]           = useState<SessionSlim[]>([])
   const [beneficiaires, setBeneficiaires] = useState<BenefSlim[]>([])
+  const [intervenants, setIntervenants]   = useState<IntervenantSlim[]>([])
   const [generating, setGenerating]       = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
 

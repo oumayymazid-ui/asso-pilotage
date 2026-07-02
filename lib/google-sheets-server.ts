@@ -138,6 +138,9 @@ export async function appendRow(
     spreadsheetId: SPREADSHEET_ID,
     range: sheetName,
     valueInputOption: "RAW",
+    // Sans ce flag, le mode par défaut ("OVERWRITE") peut mal détecter la fin
+    // du tableau et écraser la dernière ligne (observé sur ASSIDUITE).
+    insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   })
 }

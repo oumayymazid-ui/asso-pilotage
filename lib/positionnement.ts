@@ -32,6 +32,21 @@ export const emptyNotes = (): NotesPositionnement => ({
 })
 
 // ──────────────────────────────────────────────
+// Niveau CECRL attribué (EVALUATION "Niveau attribue")
+// ──────────────────────────────────────────────
+// Suggestions d'autocomplétion, PAS une liste fermée — un niveau "mixte"
+// entre deux paliers (ex. "A2+/B1") reste une saisie libre valide.
+// À ne pas confondre avec `lib/positionnement-data.ts` (NIVEAUX), qui liste
+// les niveaux d'EXERCICES du générateur de tests (A1, A2, Alpha, 3eme-Lycee,
+// 5eme-4eme, CE, CM-6eme), un concept différent.
+// Historiquement ces valeurs avaient été saisies par erreur dans la colonne
+// "Niveau / Classe" d'INSCRIPTION (scolarité) — nettoyé depuis (voir
+// scripts/migrate-inscription-values.ts). Leur unique emplacement légitime
+// est la colonne "Niveau attribue" de la table EVALUATION.
+export const NIVEAUX_CECRL = ["Alpha", "A1", "A1-", "A1+", "A2", "A2-", "A2+", "B1", "B1-", "B1+"] as const
+export type NiveauCECRL = (typeof NIVEAUX_CECRL)[number]
+
+// ──────────────────────────────────────────────
 // Helpers d'analyse
 // ──────────────────────────────────────────────
 

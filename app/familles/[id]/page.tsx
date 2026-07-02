@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, use } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import SlideOver, { Field, Input, Select, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
+import SlideOver, { Field, Input, Select, Textarea, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
 import AdresseAutocomplete from "@/components/AdresseAutocomplete"
 import DateInput from "@/components/DateInput"
 import { ChevronRight, Pencil, Plus, Upload, RotateCcw } from "lucide-react"
 import {
   fetchFamilles, fetchMembres, updateFamille, addMembre, deleteMembre, uploadFichier,
+  getCurrentAnneeScolaire, getAnneeScolaireOptions,
   type FamilleSheet, type MembreSheet
 } from "@/lib/sheets-api"
 
@@ -60,9 +61,11 @@ const statutStyle: Record<string, string> = {
 const emptyMembre = (idFamille: string): Partial<MembreSheet> => ({
   ID_Famille: idFamille,
   Nom: "", Prenom: "", Role: "Adulte",
-  Genre: "", Telephone: "", Email: "", WhatsApp: "",
+  Genre: "", Telephone: "", Email: "",
   Langue_Maternelle: "", Pays_Origine: "",
-  Niveau: "", Statut_Inscription: "", Notes: "",
+  Beneficiaire: "Non",
+  Annee_Scolaire: getCurrentAnneeScolaire(), Niveau: "", Disponibilite: "", Source_Orientation: "",
+  Montant_Adhesion: "", Montant_Inscription: "30", Remarques: "",
 })
 
 export default function FicheFamillePage({ params }: { params: Promise<{ id: string }> }) {
@@ -327,63 +330,101 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
       {/* SlideOver — ajouter membre */}
       <SlideOver open={slideOpen && slideMode === "add"} onClose={() => setSlideOpen(false)} title="Ajouter un membre" width="md">
         <form onSubmit={e => { e.preventDefault(); handleAddMembre() }} className="flex flex-col gap-4">
-          <Field label="Rôle" required>
+          {/* ── Infos personne ── */}
+          <Field label="Catégorie" required>
             <Select value={String(membreForm.Role ?? "Adulte")} onChange={e => setMembreForm(f => ({ ...f, Role: e.target.value }))}>
               <option value="Adulte">Adulte</option>
               <option value="Enfant">Enfant</option>
             </Select>
           </Field>
-          <Field label="Prénom" required>
-            <Input value={String(membreForm.Prenom ?? "")} onChange={e => setMembreForm(f => ({ ...f, Prenom: e.target.value }))} />
-          </Field>
-          <Field label="Nom">
-            <Input value={String(membreForm.Nom ?? "")} onChange={e => setMembreForm(f => ({ ...f, Nom: e.target.value }))} />
-          </Field>
-          <Field label="Téléphone">
-            <Input value={String(membreForm.Telephone ?? "")} onChange={e => setMembreForm(f => ({ ...f, Telephone: e.target.value }))} />
-          </Field>
-          <Field label="Email">
-            <Input type="email" value={String(membreForm.Email ?? "")} onChange={e => setMembreForm(f => ({ ...f, Email: e.target.value }))} />
-          </Field>
-          <Field label="Pays d'origine">
-            <Input value={String(membreForm.Pays_Origine ?? "")} onChange={e => setMembreForm(f => ({ ...f, Pays_Origine: e.target.value }))} />
-          </Field>
-          <Field label="Langue maternelle">
-            <Input value={String(membreForm.Langue_Maternelle ?? "")} onChange={e => setMembreForm(f => ({ ...f, Langue_Maternelle: e.target.value }))} />
-          </Field>
-          <Field label="Type d'apprenant">
-            <Select value={String(membreForm.Type_Apprenant ?? "")} onChange={e => setMembreForm(f => ({ ...f, Type_Apprenant: e.target.value }))}>
-              <option value="">— Choisir —</option>
-              <option value="FLE">FLE</option>
-              <option value="Soutien scolaire">Soutien scolaire</option>
+          <FormRow>
+            <Field label="Nom">
+              <Input value={String(membreForm.Nom ?? "")} onChange={e => setMembreForm(f => ({ ...f, Nom: e.target.value }))} />
+            </Field>
+            <Field label="Prénom" required>
+              <Input value={String(membreForm.Prenom ?? "")} onChange={e => setMembreForm(f => ({ ...f, Prenom: e.target.value }))} />
+            </Field>
+          </FormRow>
+          <FormRow>
+            <Field label="Genre">
+              <Select value={String(membreForm.Genre ?? "")} onChange={e => setMembreForm(f => ({ ...f, Genre: e.target.value }))}>
+                <option value="">— Choisir —</option>
+                <option value="H">H</option>
+                <option value="F">F</option>
+                <option value="N/A">N/A</option>
+              </Select>
+            </Field>
+            <Field label="Date de naissance">
+              <DateInput value={membreForm.Date_Naissance} onChange={v => setMembreForm(f => ({ ...f, Date_Naissance: v }))} />
+            </Field>
+          </FormRow>
+          <FormRow>
+            <Field label="Téléphone">
+              <Input value={String(membreForm.Telephone ?? "")} onChange={e => setMembreForm(f => ({ ...f, Telephone: e.target.value }))} />
+            </Field>
+            <Field label="Email">
+              <Input type="email" value={String(membreForm.Email ?? "")} onChange={e => setMembreForm(f => ({ ...f, Email: e.target.value }))} />
+            </Field>
+          </FormRow>
+          <FormRow>
+            <Field label="Pays d'origine">
+              <Input value={String(membreForm.Pays_Origine ?? "")} onChange={e => setMembreForm(f => ({ ...f, Pays_Origine: e.target.value }))} />
+            </Field>
+            <Field label="Langue maternelle">
+              <Input value={String(membreForm.Langue_Maternelle ?? "")} onChange={e => setMembreForm(f => ({ ...f, Langue_Maternelle: e.target.value }))} />
+            </Field>
+          </FormRow>
+
+          {/* ── Bénéficiaire → inscription ── */}
+          <Field label="Bénéficiaire" required>
+            <Select value={String(membreForm.Beneficiaire ?? "Non")} onChange={e => setMembreForm(f => ({ ...f, Beneficiaire: e.target.value }))}>
+              <option value="Non">Non</option>
+              <option value="Oui">Oui</option>
             </Select>
           </Field>
-          <Field label="Date de naissance">
-            <DateInput value={membreForm.Date_Naissance} onChange={v => setMembreForm(f => ({ ...f, Date_Naissance: v }))} />
-          </Field>
-          <Field label="Niveau / Classe (soutien scolaire uniquement)">
-            <Select value={String(membreForm.Niveau ?? "")} onChange={e => setMembreForm(f => ({ ...f, Niveau: e.target.value }))}>
-              <option value="">— Choisir —</option>
-              <option value="CM1">CM1</option>
-              <option value="CE2">CE2</option>
-              <option value="6eme">6ème</option>
-              <option value="5eme">5ème</option>
-              <option value="4eme">4ème</option>
-              <option value="2nde">2nde</option>
-              <option value="Terminale CAP">Terminale CAP</option>
-            </Select>
-          </Field>
-          <Field label="Statut">
-            <Select value={String(membreForm.Statut_Inscription ?? "")} onChange={e => setMembreForm(f => ({ ...f, Statut_Inscription: e.target.value }))}>
-              <option value="">— Choisir —</option>
-              <option value="EN COURS">EN COURS</option>
-              <option value="SUSPENDU">SUSPENDU</option>
-              <option value="ARRÊTÉ">ARRÊTÉ</option>
-            </Select>
-          </Field>
-          <Field label="Date d'inscription">
-            <DateInput value={membreForm.Date_Inscription} onChange={v => setMembreForm(f => ({ ...f, Date_Inscription: v }))} />
-          </Field>
+
+          {membreForm.Beneficiaire === "Oui" && (
+            <div className="flex flex-col gap-4 border-l-2 border-familles/30 pl-4">
+              <p className="text-xs font-semibold text-familles-dark uppercase tracking-wide">Inscription</p>
+              <FormRow>
+                <Field label="Année scolaire">
+                  <Select value={String(membreForm.Annee_Scolaire ?? "")} onChange={e => setMembreForm(f => ({ ...f, Annee_Scolaire: e.target.value }))}>
+                    {getAnneeScolaireOptions().map(y => <option key={y} value={y}>{y}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Type d'apprenant">
+                  <Input value={membreForm.Role === "Enfant" ? "Soutien scolaire" : "FLE"} readOnly className="bg-slate-50 text-muted" />
+                </Field>
+              </FormRow>
+              {membreForm.Role === "Enfant" && (
+                <Field label="Niveau scolaire">
+                  <Input value={String(membreForm.Niveau ?? "")} onChange={e => setMembreForm(f => ({ ...f, Niveau: e.target.value }))} placeholder="ex. CE2, 5ᵉ…" />
+                </Field>
+              )}
+              <FormRow>
+                <Field label="Disponibilité">
+                  <Input value={String(membreForm.Disponibilite ?? "")} onChange={e => setMembreForm(f => ({ ...f, Disponibilite: e.target.value }))} />
+                </Field>
+                <Field label="Orientation">
+                  <Input value={String(membreForm.Source_Orientation ?? "")} onChange={e => setMembreForm(f => ({ ...f, Source_Orientation: e.target.value }))} />
+                </Field>
+              </FormRow>
+              <FormRow>
+                <Field label="Montant d'adhésion (€)">
+                  <Input type="number" value={String(membreForm.Montant_Adhesion ?? "")} onChange={e => setMembreForm(f => ({ ...f, Montant_Adhesion: e.target.value }))} />
+                </Field>
+                <Field label="Montant d'inscription (€)">
+                  <Input type="number" value={String(membreForm.Montant_Inscription ?? "")} onChange={e => setMembreForm(f => ({ ...f, Montant_Inscription: e.target.value }))} />
+                </Field>
+              </FormRow>
+              <Field label="Remarques">
+                <Textarea value={String(membreForm.Remarques ?? "")} onChange={e => setMembreForm(f => ({ ...f, Remarques: e.target.value }))} />
+              </Field>
+              <p className="text-xs text-muted">
+                Le statut « En cours » et la date d'inscription (aujourd'hui) sont enregistrés automatiquement.
+              </p>
+            </div>
+          )}
           <Field label="Bulletin d'inscription (PDF)">
             <label className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-surface text-sm text-muted cursor-pointer hover:border-familles transition-colors w-fit">
               <Upload size={15} />

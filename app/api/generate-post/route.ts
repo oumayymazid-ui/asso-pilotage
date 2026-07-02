@@ -59,7 +59,7 @@ function buildPrompt(req: GeneratePostRequest): string {
 
   const tones = req.plateformes.map(p => `${p}=${TONE[p] ?? "adapté"}`).join(", ")
 
-  return `Rédige en français un post réseaux sociaux pour Ada Tech School (asso formation numérique).
+  return `Rédige en français un post réseaux sociaux pour une association de formation numérique.
 ${ctx}
 Titre : ${req.titre}
 Plateformes : ${tones}

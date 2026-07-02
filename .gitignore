@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Config locale de l'outil de preview (chemins spécifiques à la machine)
 .claude/launch.json
+
+# fichiers personnels hors périmètre du projet
+Transcript*.pdf

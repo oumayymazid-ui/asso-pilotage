@@ -1,6 +1,6 @@
 # Asso Pilotage
 
-Dashboard de pilotage pour une association de formation numérique (Ada Tech School).
+Dashboard de pilotage pour une association de formation numérique.
 **Next.js 16.2.6 · React 19 · Tailwind v4 · TypeScript**
 Auth **Supabase** · données **Google Sheets** (API REST v4 — Familles, Assiduité, **Ateliers**, Communication) + `localStorage` (autres modules) · IA **Gemini** (posts & OCR bulletins)
 
@@ -87,7 +87,7 @@ Nécessite un fichier **`.env.local`** avec `GOOGLE_CLIENT_EMAIL` et `GOOGLE_PRI
 ### Tables Google Sheets dédiées aux ateliers
 | Table | Rôle |
 |---|---|
-| `ATELIER` | 1 ligne = 1 atelier-groupe (`Categorie` = type, `Groupe` = niveau, dates, mode de groupage, organisation…) |
+| `EVENEMENT2` | table partagée avec d'autres types d'événements (cours, sortie…) — ce module ne lit/écrit que les lignes `Type = "atelier"`. 1 ligne = 1 atelier-groupe (`Categorie` = type, `Groupe` = niveau, dates, mode de groupage, organisation…) |
 | `ATELIER_PARTICIPANT` | jointure atelier ↔ participant, colonne `Role` (`Beneficiaire` → `PERSONNE` / `Intervenant` → `INTERVENANT`) + `Heures`/`Fonction` pour les intervenants |
 | `INTERVENANT` | membres de l'asso : enseignantes FLE / stagiaires FLE / bénévoles / salariées |
 
@@ -101,11 +101,11 @@ Nécessite un fichier **`.env.local`** avec `GOOGLE_CLIENT_EMAIL` et `GOOGLE_PRI
   - **Théâtre / marionnettes** → sélection **directe** des élèves (sélecteur compact recherchable, filtré par niveau : marionnettes = élémentaire+6e, théâtre = collège+lycée+6e), **sans brouillon** → affichés directement dans l'onglet **Groupes**.
   - Parents *par notes* (pas de cycle).
 - Toujours l'**inscription la plus récente** retenue (élève réinscrit chaque année → nouveau niveau).
-- Validation d'un brouillon → écrit les groupes dans le Sheet (1 ligne `ATELIER` par groupe).
+- Validation d'un brouillon → écrit les groupes dans le Sheet (1 ligne `EVENEMENT2` par groupe).
 
 ### ⏳ Reste à faire
 - **Étape 7** — émargement **par groupe** : ajouter une colonne `Groupe ID` à `ASSIDUITE`.
-- **Étape 8** — **dashboard par type d'atelier** (quantitatif + qualitatif) : ajouter à `ATELIER` les colonnes heures salariés / stagiaires / bénévoles + objectifs atteints.
+- **Étape 8** — **dashboard par type d'atelier** (quantitatif + qualitatif) : ajouter à `EVENEMENT2` les colonnes heures salariés / stagiaires / bénévoles + objectifs atteints.
 - Décision base de données : scinder `INSCRIPTION."Niveau / Classe"` en `Niveau CECRL` + `Classe scolaire` (proposé, non fait).
 
 > ⚠️ Ne pas créer de données de test accentuées via `curl` (l'outil terminal casse l'UTF-8 → `U+FFFD`). Passer par le formulaire de l'appli ou un script Node (qui gère l'UTF-8).

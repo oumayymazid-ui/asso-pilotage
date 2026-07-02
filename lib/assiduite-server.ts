@@ -76,7 +76,7 @@ async function readAssiduiteData(): Promise<AssiduiteData> {
   // 1 seule requête batch pour les 5 onglets (économise le quota Sheets).
   const res = await sheets.spreadsheets.values.batchGet({
     spreadsheetId: SPREADSHEET_ID,
-    ranges: ["EVENEMENT", "PERSONNE", "INSCRIPTION", "ASSIDUITE", "INTERVENANT"].map(a1),
+    ranges: ["EVENEMENT2", "PERSONNE", "INSCRIPTION", "ASSIDUITE", "INTERVENANT"].map(a1),
     majorDimension: "ROWS",
   })
   const vr = res.data.valueRanges ?? []
@@ -125,7 +125,7 @@ async function readAssiduiteData(): Promise<AssiduiteData> {
   const presences: Record<number, Record<number, PresenceStatus>> = {}
   const participants = new Map<number, Set<number>>()
   for (const a of assiduite) {
-    const evId = Number(a["evenement id"])
+    const evId = Number(a["evenement2 id"])
     const pId = Number(a["personne id"])
     if (!evId || !pId) continue
     ;(presences[evId] ??= {})[pId] = normEtat(a["etat"])
@@ -134,7 +134,7 @@ async function readAssiduiteData(): Promise<AssiduiteData> {
     set.add(pId)
   }
 
-  // Sessions depuis EVENEMENT
+  // Sessions depuis EVENEMENT2
   const sessions: Session[] = evenements.map((e) => {
     const id = Number(e["id"])
     return {

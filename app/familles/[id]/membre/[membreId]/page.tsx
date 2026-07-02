@@ -10,7 +10,7 @@ import { ChevronRight, Plus, Pencil, Upload, FileText, ExternalLink, X } from "l
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
   addPaiement, updatePaiement, deletePaiement, addInscription, updateInscription, uploadFichier,
-  fetchDocuments, deleteDocument,
+  fetchDocuments, deleteDocument, getCurrentAnneeScolaire, getAnneeScolaireOptions,
   type FamilleSheet, type MembreSheet, type PaiementSheet, type InscriptionSheet, type DocumentJoint
 } from "@/lib/sheets-api"
 
@@ -83,24 +83,6 @@ const TYPES_APPRENANT = ["FLE", "Soutien scolaire"]
 function ExtraOption({ value, list }: { value: string; list: string[] }) {
   if (!value || list.includes(value)) return null
   return <option value={value}>{value}</option>
-}
-
-function getCurrentAnneeScolaire(): string {
-  const now = new Date()
-  const baseYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
-  const y1 = String(baseYear % 100).padStart(2, "0")
-  const y2 = String((baseYear + 1) % 100).padStart(2, "0")
-  return `${y1}-${y2}`
-}
-
-function getAnneeScolaireOptions(): string[] {
-  const now = new Date()
-  const baseYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
-  return [-1, 0, 1].map(offset => {
-    const y1 = String((baseYear + offset) % 100).padStart(2, "0")
-    const y2 = String((baseYear + offset + 1) % 100).padStart(2, "0")
-    return `${y1}-${y2}`
-  })
 }
 
 function parseAnneeScolaireEnd(annee: string): Date | null {
