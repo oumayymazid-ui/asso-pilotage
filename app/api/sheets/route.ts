@@ -134,6 +134,36 @@ const DOSSIERS_DOCUMENT: Record<string, string> = {
   "Droit à l'image":        "1vD-Q6oTVf6HrWBQIAd6Q7CSFm0zJIoAt",
   "Charte d'engagement":    "1H7FcDHQSkf9q3DW71FVBonjwxll4yXsz",
   "Autorisation de sortie": "14f-X5DRlA-z7GorJMUxlBq1KlXDGTFSi",
+  "Bulletins":              "1gFIzCwk33OaHlFSJjluKDs3iU9onyAQ2",
+}
+
+// Catégorie de document → colonne « Oui/Non » à synchroniser dans la base.
+// (Fiche d'inscription : pas de colonne dédiée, l'info reste dérivée de DOCUMENTS JOINTS.)
+const DOC_FLAG: Record<string, { table: "PERSONNE" | "SCOLARITE"; column: string }> = {
+  "Droit à l'image":        { table: "PERSONNE",  column: "Droit a l'image" },
+  "Charte d'engagement":    { table: "PERSONNE",  column: "Charte d'engagement" },
+  "Autorisation de sortie": { table: "SCOLARITE", column: "Autorisation de sortie" },
+  "Bulletins":              { table: "SCOLARITE", column: "Bulletins" },
+}
+
+// Met la colonne liée à une catégorie de document à « Oui »/« Non ».
+// Pour SCOLARITE, crée la ligne de la personne si elle n'existe pas encore.
+async function syncDocFlag(sheets: Sheets, idMembre: string, categorie: string, present: boolean) {
+  const map = DOC_FLAG[categorie]
+  if (!map || !idMembre) return
+  const val = present ? "Oui" : "Non"
+  if (map.table === "PERSONNE") {
+    await updateRowById(sheets, "PERSONNE", idMembre, { [map.column]: val })
+    return
+  }
+  const scol = await sheetToObjects(sheets, "SCOLARITE")
+  const row = scol.find((s) => String(s["Personne ID"]) === String(idMembre))
+  if (row) {
+    await updateRowById(sheets, "SCOLARITE", String(row["ID"]), { [map.column]: val })
+  } else {
+    const id = await nextId(sheets, "SCOLARITE")
+    await appendRow(sheets, "SCOLARITE", { "ID": id, "Personne ID": idMembre, [map.column]: val })
+  }
 }
 
 async function uploadFichier(sheets: Sheets, body: Record<string, unknown>) {
@@ -187,6 +217,9 @@ async function uploadFichier(sheets: Sheets, body: Record<string, unknown>) {
     requestBody: { values: [row] },
   })
 
+  // 3) Synchronise la colonne « Oui/Non » correspondante (Droit à l'image, Charte, Bulletins…)
+  await syncDocFlag(sheets, idMembre, categorie, true)
+
   return { ok: true, url, fileId, ID: id, nomFichier }
 }
 
@@ -201,11 +234,23 @@ async function deleteDocument(sheets: Sheets, idDoc: string) {
   // Best-effort : tenter de supprimer le fichier Drive associé
   const docs = await sheetToObjects(sheets, "DOCUMENTS JOINTS")
   const d = docs.find((x) => String(x["ID"]) === String(idDoc))
+  const idMembre = d ? String(d["ID PERSONNE"] ?? "") : ""
+  const categorie = d ? String(d["Catégorie"] ?? "") : ""
   if (d) {
     const m = /\/file\/d\/([^/]+)/.exec(String(d["URL"] ?? ""))
     if (m) { try { await deleteDriveFile(m[1]) } catch { /* le compte de service ne peut pas toujours supprimer */ } }
   }
   const supprime = await deleteRowById(sheets, "DOCUMENTS JOINTS", String(idDoc))
+
+  // Repasse la colonne à « Non » s'il ne reste plus aucun document de cette catégorie
+  if (supprime && idMembre && DOC_FLAG[categorie]) {
+    const resteUnDoc = docs.some((x) =>
+      String(x["ID"]) !== String(idDoc) &&
+      String(x["ID PERSONNE"]) === idMembre &&
+      String(x["Catégorie"]) === categorie
+    )
+    await syncDocFlag(sheets, idMembre, categorie, resteUnDoc)
+  }
   return supprime ? { ok: true } : { error: "Document introuvable" }
 }
 

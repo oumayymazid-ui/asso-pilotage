@@ -55,6 +55,7 @@ const TYPES_DOCUMENT = [
   "Droit à l'image",
   "Charte d'engagement",
   "Autorisation de sortie",
+  "Bulletins",
 ]
 
 const niveauStyle: Record<string, string> = {
@@ -334,8 +335,6 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     { label: "Adresse", value: String(famille?.Adresse_Complete || famille?.Adresse || "") },
     { label: "Contact principal", value: membre.Contact_Principal ? String(membre.Contact_Principal) : "" },
     { label: "Source d'orientation", value: String(membre.Source_Orientation || "") },
-    { label: "Droit à l'image", value: membre.Droit_Image ? String(membre.Droit_Image) : "" },
-    { label: "Charte d'engagement", value: membre.Charte ? String(membre.Charte) : "" },
   ].filter(c => c.value !== "")
 
   // Scolarité : la sienne (enfant) et celle des enfants de la famille (parent)
@@ -349,10 +348,12 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
     { label: "Professeur principal", value: maScolarite.ProfPrincipal?.Nom || "" },
     { label: "Téléphone prof.", value: maScolarite.ProfPrincipal?.Telephone || "" },
     { label: "Email prof.", value: maScolarite.ProfPrincipal?.Email || "" },
-    { label: "Autorisation de sortie", value: maScolarite.Autorisation_Sortie || "" },
-    { label: "Bulletins reçus", value: maScolarite.Bulletins || "" },
     { label: "Rencontre prof.", value: maScolarite.Rencontre_Prof || "" },
   ].filter(c => c.value !== "") : []
+
+  // Présence des pièces (Oui/Non) dérivée de DOCUMENTS JOINTS. Toujours affichée.
+  const docPresent = (cat: string) => documents.some(d => d.Categorie === cat)
+  const piecesStatut = TYPES_DOCUMENT.map(cat => ({ cat, present: docPresent(cat) }))
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -476,31 +477,45 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* Documents — affiché uniquement s'il y en a */}
-      {documents.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-5 mb-6">
-          <h2 className="text-sm font-semibold text-foreground mb-3">
-            Documents
-            <span className="ml-2 text-xs font-normal text-muted">({documents.length})</span>
-          </h2>
-          <ul className="space-y-2">
-            {documents.map(doc => (
-              <li key={doc.ID_Doc} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-2.5">
-                <a href={doc.URL} target="_blank" rel="noopener noreferrer"
-                   className="flex items-center gap-2 min-w-0 text-sm text-familles-dark hover:underline">
-                  <FileText size={15} className="shrink-0" />
-                  <span className="truncate">{doc.Categorie || "Document"}</span>
-                  <ExternalLink size={13} className="shrink-0 text-muted" />
-                </a>
-                <button onClick={() => handleDeleteDocument(doc.ID_Doc)} aria-label="Supprimer ce document" title="Supprimer"
-                  className="shrink-0 p-1 rounded text-muted hover:text-absences-dark hover:bg-absences-light transition-colors">
-                  <X size={14} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Documents : statut de présence (Oui/Non) + fichiers joints */}
+      <div className="bg-surface border border-border rounded-xl p-5 mb-6">
+        <h2 className="text-sm font-semibold text-foreground mb-3">Documents</h2>
+
+        {/* Statut Oui/Non par type de document (dérivé des fichiers joints) */}
+        <ul className="space-y-2 mb-4">
+          {piecesStatut.map(({ cat, present }) => (
+            <li key={cat} className="flex items-center justify-between gap-3">
+              <span className="text-sm text-foreground">{cat}</span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${present ? "bg-finances-light text-finances-dark" : "bg-slate-100 text-slate-500"}`}>
+                {present ? "Oui" : "Non"}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        {/* Fichiers effectivement joints (aperçu Drive + suppression) */}
+        {documents.length > 0 && (
+          <>
+            <p className="text-xs font-medium text-muted mb-2 pt-3 border-t border-border">Fichiers joints ({documents.length})</p>
+            <ul className="space-y-2">
+              {documents.map(doc => (
+                <li key={doc.ID_Doc} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-2.5">
+                  <a href={doc.URL} target="_blank" rel="noopener noreferrer"
+                     className="flex items-center gap-2 min-w-0 text-sm text-familles-dark hover:underline">
+                    <FileText size={15} className="shrink-0" />
+                    <span className="truncate">{doc.Categorie || "Document"}</span>
+                    <ExternalLink size={13} className="shrink-0 text-muted" />
+                  </a>
+                  <button onClick={() => handleDeleteDocument(doc.ID_Doc)} aria-label="Supprimer ce document" title="Supprimer"
+                    className="shrink-0 p-1 rounded text-muted hover:text-absences-dark hover:bg-absences-light transition-colors">
+                    <X size={14} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
 
       {/* Journal : commentaires + appels + emails */}
       <JournalSuivi notes={membre.Notes} onSave={handleSaveNotes} />
