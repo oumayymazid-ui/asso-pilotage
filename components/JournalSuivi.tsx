@@ -179,7 +179,7 @@ export default function JournalSuivi({
       {/* Formulaire commentaire */}
       {addingComment && (
         <div className="flex flex-col gap-3 mb-4 bg-slate-50 rounded-lg p-3">
-          <Textarea value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={3} placeholder="Écrivez un commentaire…" />
+          <Textarea value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={3} placeholder="Écrivez un commentaire…" aria-label="Commentaire" />
           <div className="flex items-center gap-2">
             <button onClick={handleAddComment} disabled={saving || !commentDraft.trim()}
               className="px-4 py-2 rounded-lg bg-familles text-white text-sm font-medium hover:bg-familles-dark transition-colors disabled:opacity-60">
@@ -206,7 +206,7 @@ export default function JournalSuivi({
               ))}
             </div>
           </div>
-          <Textarea value={callDraft} onChange={e => setCallDraft(e.target.value)} rows={3} placeholder="Notes de l'appel (optionnel)…" />
+          <Textarea value={callDraft} onChange={e => setCallDraft(e.target.value)} rows={3} placeholder="Notes de l'appel (optionnel)…" aria-label="Notes de l'appel" />
           <div className="flex items-center gap-2">
             <button onClick={handleAddCall} disabled={saving}
               className="px-4 py-2 rounded-lg bg-benevoles text-white text-sm font-medium hover:bg-benevoles-dark transition-colors disabled:opacity-60">
@@ -233,7 +233,7 @@ export default function JournalSuivi({
               ))}
             </div>
           </div>
-          <Textarea value={emailDraft} onChange={e => setEmailDraft(e.target.value)} rows={3} placeholder="Objet / résumé de l'email…" />
+          <Textarea value={emailDraft} onChange={e => setEmailDraft(e.target.value)} rows={3} placeholder="Objet / résumé de l'email…" aria-label="Objet ou résumé de l'email" />
           <div className="flex items-center gap-2">
             <button onClick={handleAddEmail} disabled={saving}
               className="px-4 py-2 rounded-lg bg-communication text-white text-sm font-medium hover:bg-communication-dark transition-colors disabled:opacity-60">

@@ -309,8 +309,8 @@ export default function FamillesPage() {
               <Input value={form.Ville} onChange={e => setForm(f => ({ ...f, Ville: e.target.value }))} />
             </Field>
           </FormRow>
-          <Field label="Quartier QVP">
-            <Input value={form.Quartier_QVP} onChange={e => setForm(f => ({ ...f, Quartier_QVP: e.target.value }))} placeholder="ex. Bellevue Nantes" />
+          <Field label="Quartier QVP" hint="ex. Bellevue Nantes">
+            <Input value={form.Quartier_QVP} onChange={e => setForm(f => ({ ...f, Quartier_QVP: e.target.value }))} />
           </Field>
           <SaveButton accent="familles" />
         </form>

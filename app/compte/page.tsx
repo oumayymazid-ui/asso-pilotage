@@ -89,11 +89,11 @@ function ProfilSection({ user, onUpdated }: {
         <h3 className="text-sm font-semibold text-foreground mb-4">Changer le mot de passe</h3>
         <form onSubmit={handleChangePwd} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Nouveau mot de passe" required>
-              <Input type="password" placeholder="6 caractères min." value={pwdForm.newPwd} onChange={e => setPwdForm(f => ({ ...f, newPwd: e.target.value }))} />
+            <Field label="Nouveau mot de passe" hint="6 caractères min." required>
+              <Input type="password" value={pwdForm.newPwd} onChange={e => setPwdForm(f => ({ ...f, newPwd: e.target.value }))} />
             </Field>
-            <Field label="Confirmer" required>
-              <Input type="password" placeholder="Identique" value={pwdForm.confirmPwd} onChange={e => setPwdForm(f => ({ ...f, confirmPwd: e.target.value }))} />
+            <Field label="Confirmer" hint="Identique au nouveau mot de passe" required>
+              <Input type="password" value={pwdForm.confirmPwd} onChange={e => setPwdForm(f => ({ ...f, confirmPwd: e.target.value }))} />
             </Field>
           </div>
           <button type="submit" className="self-start px-5 py-2 bg-brand text-white rounded-xl text-sm font-medium hover:bg-brand-dark transition-colors">

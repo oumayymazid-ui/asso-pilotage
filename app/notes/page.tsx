@@ -227,6 +227,7 @@ export default function NotesPage() {
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
+            aria-label="Rechercher un élève ou un parent"
             placeholder="Rechercher un élève ou un parent…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -246,6 +247,7 @@ export default function NotesPage() {
         <select
           value={typeFiltre}
           onChange={e => setTypeFiltre(e.target.value as "tous" | TypeBenef)}
+          aria-label="Filtrer par type de bénéficiaire"
           className="text-sm rounded-xl border border-border bg-surface px-3 py-2 focus:outline-none focus:ring-2 focus:ring-positionnement/30"
         >
           <option value="tous">Tous</option>
@@ -309,6 +311,7 @@ export default function NotesPage() {
                         onBlur={() => saveRow(b.id)}
                         disabled={busy}
                         placeholder="—"
+                        aria-label={`Niveau — ${b.prenom} ${b.nom}`}
                         title="Ex : A2+, B1- — ou un niveau intermédiaire comme A2+/B1"
                         className="w-full text-sm rounded-lg border border-border bg-surface px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-positionnement/30"
                       />
@@ -322,6 +325,7 @@ export default function NotesPage() {
                           onBlur={() => saveRow(b.id)}
                           disabled={busy}
                           placeholder="—"
+                          aria-label={`${({ compEcrite: "Compréhension écrite", compOrale: "Compréhension orale", exprEcrite: "Expression écrite", exprOrale: "Expression orale" } as const)[field]} — ${b.prenom} ${b.nom}`}
                           className="w-full text-sm rounded-lg border border-border bg-surface px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-positionnement/30"
                         />
                       </td>
@@ -333,6 +337,7 @@ export default function NotesPage() {
                         onChange={e => updateLocal(b.id, { date: e.target.value })}
                         onBlur={() => saveRow(b.id)}
                         disabled={busy}
+                        aria-label={`Date de l'évaluation — ${b.prenom} ${b.nom}`}
                         className="w-full text-sm rounded-lg border border-border bg-surface px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-positionnement/30"
                       />
                     </td>
@@ -344,6 +349,7 @@ export default function NotesPage() {
                         onBlur={() => saveRow(b.id)}
                         disabled={busy}
                         placeholder="Nom…"
+                        aria-label={`Évaluateur — ${b.prenom} ${b.nom}`}
                         className="w-full text-sm rounded-lg border border-border bg-surface px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-positionnement/30"
                       />
                     </td>

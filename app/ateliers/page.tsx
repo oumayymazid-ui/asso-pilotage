@@ -409,6 +409,7 @@ function CategorieField({
               value={newType}
               onChange={e => setNewType(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addType() } }}
+              aria-label="Nouveau type d'atelier"
               placeholder="Nouveau type…"
               className="flex-1 px-2.5 py-1 text-xs rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-ateliers/30"
             />
@@ -490,6 +491,7 @@ function SelecteurBeneficiaires({
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                aria-label="Rechercher un nom"
                 placeholder="Rechercher un nom…"
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-ateliers/30"
               />
@@ -598,6 +600,7 @@ function SelecteurIntervenants({
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                aria-label="Rechercher un nom"
                 placeholder="Rechercher un nom…"
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-benevoles/30"
               />
@@ -2617,9 +2620,8 @@ export default function AteliersPage() {
                 onChange={c => setSessionForm(f => ({ ...f, categorie: c }))}
               />
             </Field>
-            <Field label="Groupe / niveau">
+            <Field label="Groupe / niveau" hint="ex. A1">
               <Input
-                placeholder="Ex : A1"
                 value={sessionForm.groupe}
                 onChange={e => setSessionForm(f => ({ ...f, groupe: e.target.value }))}
               />
@@ -2654,9 +2656,8 @@ export default function AteliersPage() {
               </Field>
             </FormRow>
           )}
-          <Field label="Salle">
+          <Field label="Salle" hint="ex. Salle A">
             <Input
-              placeholder="Salle A"
               value={sessionForm.salle}
               onChange={e => setSessionForm(f => ({ ...f, salle: e.target.value }))}
             />
@@ -2674,9 +2675,8 @@ export default function AteliersPage() {
               </Select>
             </Field>
             {/* ── Période concernée (champ libre) ── */}
-            <Field label="Période concernée">
+            <Field label="Période concernée" hint="ex. Vacances de printemps 2026">
               <Input
-                placeholder="Ex : Vacances de printemps 2026"
                 value={sessionForm.periode}
                 onChange={e => setSessionForm(f => ({ ...f, periode: e.target.value }))}
               />
@@ -2745,9 +2745,9 @@ export default function AteliersPage() {
               {sessionForm.audience !== "parents" && " L'âge des bénéficiaires est géré automatiquement par tranches (6-9, 10-13, 14-18 ans)."}
             </p>
             {sessionForm.audience === "parents" ? (
-              <Field label="Taille de groupe cible">
+              <Field label="Taille de groupe cible" hint="ex. 10">
                 <Input
-                  type="number" min={2} max={30} placeholder="10"
+                  type="number" min={2} max={30}
                   value={sessionForm.tailleGroupeCible ?? ""}
                   onChange={e => setSessionForm(f => ({
                     ...f, tailleGroupeCible: e.target.value === "" ? null : Number(e.target.value),
@@ -2757,18 +2757,18 @@ export default function AteliersPage() {
             ) : (
               <>
                 <FormRow>
-                  <Field label="Taille de groupe cible">
+                  <Field label="Taille de groupe cible" hint="ex. 10">
                     <Input
-                      type="number" min={2} max={30} placeholder="10"
+                      type="number" min={2} max={30}
                       value={sessionForm.tailleGroupeCible ?? ""}
                       onChange={e => setSessionForm(f => ({
                         ...f, tailleGroupeCible: e.target.value === "" ? null : Number(e.target.value),
                       }))}
                     />
                   </Field>
-                  <Field label="Ratio encadrement (1 pour N)">
+                  <Field label="Ratio encadrement (1 pour N)" hint="Optionnel">
                     <Input
-                      type="number" min={1} max={20} placeholder="(optionnel)"
+                      type="number" min={1} max={20}
                       value={sessionForm.ratioEncadrement ?? ""}
                       onChange={e => setSessionForm(f => ({
                         ...f, ratioEncadrement: e.target.value === "" ? null : Number(e.target.value),
@@ -2893,9 +2893,8 @@ export default function AteliersPage() {
         width="lg"
       >
         <form onSubmit={e => { e.preventDefault(); handleSaveGroupe() }} className="flex flex-col gap-4">
-          <Field label="Nom" required>
+          <Field label="Nom" required hint="ex. Groupe A – Débutants">
             <Input
-              placeholder="Ex : Groupe A – Débutants"
               value={groupeForm.nom}
               onChange={e => setGroupeForm(f => ({ ...f, nom: e.target.value }))}
             />
@@ -2929,9 +2928,8 @@ export default function AteliersPage() {
               </Select>
             </Field>
           </FormRow>
-          <Field label="Description">
+          <Field label="Description" hint="Critères de composition du groupe">
             <Textarea
-              placeholder="Critères de composition du groupe…"
               value={groupeForm.description}
               onChange={e => setGroupeForm(f => ({ ...f, description: e.target.value }))}
             />
@@ -3042,9 +3040,8 @@ export default function AteliersPage() {
         width="md"
       >
         <form onSubmit={e => { e.preventDefault(); handleSaveSeance() }} className="flex flex-col gap-4">
-          <Field label="Nom de la séance">
+          <Field label="Nom de la séance" hint="ex. Séance 3 — lecture à voix haute">
             <Input
-              placeholder="Ex : Séance 3 — lecture à voix haute"
               value={seanceForm.nom}
               onChange={e => setSeanceForm(f => ({ ...f, nom: e.target.value }))}
             />
@@ -3131,6 +3128,7 @@ export default function AteliersPage() {
                         step="0.5"
                         value={entry.heures}
                         onChange={e => setHeuresIntervenantSeance(entry.id, e.target.value)}
+                        aria-label={`Heures pour ${iv.Prenom} ${iv.Nom}`}
                         placeholder="0"
                         className="w-16 px-2 py-1 text-sm rounded-lg border border-border bg-surface text-right focus:outline-none focus:ring-2 focus:ring-ateliers/30"
                       />

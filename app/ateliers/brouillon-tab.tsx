@@ -732,14 +732,14 @@ export default function BrouillonGroupesTab(props: {
             <div className="grid grid-cols-2 gap-2">
               <Field label="Note minimum (sur 20)">
                 <Input
-                  type="number" min={0} max={20} placeholder="—"
+                  type="number" min={0} max={20}
                   value={paramForm.noteMin}
                   onChange={e => setParamForm(f => ({ ...f, noteMin: e.target.value }))}
                 />
               </Field>
               <Field label="Note maximum (sur 20)">
                 <Input
-                  type="number" min={0} max={20} placeholder="—"
+                  type="number" min={0} max={20}
                   value={paramForm.noteMax}
                   onChange={e => setParamForm(f => ({ ...f, noteMax: e.target.value }))}
                 />

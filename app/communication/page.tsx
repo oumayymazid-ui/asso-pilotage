@@ -935,15 +935,14 @@ export default function CommunicationPage() {
             </Field>
           </FormRow>
 
-          <Field label="Titre" required>
-            <Input placeholder="Ex: Recap atelier HTML/CSS" value={form.titre} onChange={e => setForm(f => ({ ...f, titre: e.target.value }))} />
+          <Field label="Titre" required hint="ex. Recap atelier HTML/CSS">
+            <Input value={form.titre} onChange={e => setForm(f => ({ ...f, titre: e.target.value }))} />
           </Field>
 
           {form.categorie === "autre" && (
-            <Field label="Brief (contexte pour la génération IA)">
+            <Field label="Brief (contexte pour la génération IA)" hint="Décrivez en quelques mots ce que vous voulez communiquer…">
               <Textarea
                 rows={2}
-                placeholder="Décrivez en quelques mots ce que vous voulez communiquer…"
                 value={form.brief ?? ""}
                 onChange={e => setForm(f => ({ ...f, brief: e.target.value }))}
               />
@@ -952,7 +951,7 @@ export default function CommunicationPage() {
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-foreground">Contenu principal</span>
+              <span id="contenu-principal-label" className="text-xs font-medium text-foreground">Contenu principal</span>
               <button
                 type="button"
                 onClick={handleGenerate}
@@ -968,7 +967,8 @@ export default function CommunicationPage() {
             {generateError && (
               <p className="text-[11px] text-alert bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">{generateError}</p>
             )}
-            <Textarea rows={5} placeholder="Texte du post… ou cliquez sur ✨ Générer avec l'IA" value={form.contenu ?? ""} onChange={e => setForm(f => ({ ...f, contenu: e.target.value }))} />
+            <p id="contenu-principal-hint" className="text-xs text-muted normal-case tracking-normal font-normal -mt-0.5">Texte du post… ou cliquez sur ✨ Générer avec l&apos;IA</p>
+            <Textarea rows={5} aria-labelledby="contenu-principal-label" aria-describedby="contenu-principal-hint" value={form.contenu ?? ""} onChange={e => setForm(f => ({ ...f, contenu: e.target.value }))} />
           </div>
 
           <Field label="Images / Vidéos">
@@ -1031,16 +1031,19 @@ export default function CommunicationPage() {
                 {form.plateforme.includes(activePlatformTab) && (
                   <div className="border border-border rounded-xl p-3 space-y-3 bg-slate-50">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted">Contenu spécifique <span className="font-normal">(optionnel — remplace le contenu principal)</span></label>
-                      <Textarea rows={3} placeholder={`Contenu adapté pour ${activePlatformTab}…`} value={form.plateformeContenu[activePlatformTab]?.contenu ?? ""} onChange={e => updatePlatformeContenu(activePlatformTab, "contenu", e.target.value)} />
+                      <label id="plateforme-contenu-label" className="text-[11px] font-medium text-muted">Contenu spécifique <span className="font-normal">(optionnel — remplace le contenu principal)</span></label>
+                      <p id="plateforme-contenu-hint" className="text-xs text-muted normal-case tracking-normal font-normal -mt-0.5">{`Contenu adapté pour ${activePlatformTab}…`}</p>
+                      <Textarea rows={3} aria-labelledby="plateforme-contenu-label" aria-describedby="plateforme-contenu-hint" value={form.plateformeContenu[activePlatformTab]?.contenu ?? ""} onChange={e => updatePlatformeContenu(activePlatformTab, "contenu", e.target.value)} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted">Tags / Hashtags</label>
-                      <Input placeholder="#association #numérique #formation" value={form.plateformeContenu[activePlatformTab]?.tags ?? ""} onChange={e => updatePlatformeContenu(activePlatformTab, "tags", e.target.value)} />
+                      <label id="plateforme-tags-label" className="text-[11px] font-medium text-muted">Tags / Hashtags</label>
+                      <p id="plateforme-tags-hint" className="text-xs text-muted normal-case tracking-normal font-normal -mt-0.5">ex. #association #numérique #formation</p>
+                      <Input aria-labelledby="plateforme-tags-label" aria-describedby="plateforme-tags-hint" value={form.plateformeContenu[activePlatformTab]?.tags ?? ""} onChange={e => updatePlatformeContenu(activePlatformTab, "tags", e.target.value)} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-muted">Lien</label>
-                      <Input type="url" placeholder="https://…" value={form.plateformeContenu[activePlatformTab]?.lien ?? ""} onChange={e => updatePlatformeContenu(activePlatformTab, "lien", e.target.value)} />
+                      <label id="plateforme-lien-label" className="text-[11px] font-medium text-muted">Lien</label>
+                      <p id="plateforme-lien-hint" className="text-xs text-muted normal-case tracking-normal font-normal -mt-0.5">ex. https://…</p>
+                      <Input type="url" aria-labelledby="plateforme-lien-label" aria-describedby="plateforme-lien-hint" value={form.plateformeContenu[activePlatformTab]?.lien ?? ""} onChange={e => updatePlatformeContenu(activePlatformTab, "lien", e.target.value)} />
                     </div>
                   </div>
                 )}
@@ -1126,6 +1129,7 @@ export default function CommunicationPage() {
                   <div className="flex gap-2">
                     <input
                       type="text"
+                      aria-label="Nom de l'enseignant·e"
                       placeholder="Nom de l'enseignant·e…"
                       value={newFormatrice}
                       onChange={e => setNewFormatrice(e.target.value)}
@@ -1162,8 +1166,8 @@ export default function CommunicationPage() {
             <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </Field>
 
-          <Field label="Auteur">
-            <Input placeholder="Nadjat" value={form.auteur} onChange={e => setForm(f => ({ ...f, auteur: e.target.value }))} />
+          <Field label="Auteur" hint="ex. Nadjat">
+            <Input value={form.auteur} onChange={e => setForm(f => ({ ...f, auteur: e.target.value }))} />
           </Field>
 
           {saveError && (

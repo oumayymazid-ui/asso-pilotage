@@ -261,18 +261,18 @@ export default function MembresPage() {
         <form onSubmit={handleSave} className="flex flex-col gap-4">
           {error && <p className="text-sm text-alert bg-red-50 border border-alert/20 px-3 py-2 rounded-lg">{error}</p>}
           <FormRow>
-            <Field label="Prénom" required>
-              <Input placeholder="Nadjat" value={form.prenom} onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))} />
+            <Field label="Prénom" required hint="ex. Nadjat">
+              <Input value={form.prenom} onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))} />
             </Field>
-            <Field label="Nom" required>
-              <Input placeholder="B." value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
+            <Field label="Nom" required hint="ex. B.">
+              <Input value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
             </Field>
           </FormRow>
-          <Field label="Email" required>
-            <Input type="email" placeholder="nadjat@asso.fr" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+          <Field label="Email" required hint="ex. nadjat@asso.fr">
+            <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           </Field>
-          <Field label="Téléphone">
-            <Input placeholder="06 12 34 56 78" value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} />
+          <Field label="Téléphone" hint="ex. 06 12 34 56 78">
+            <Input value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} />
           </Field>
           <FormRow>
             <Field label="Statut">
@@ -288,12 +288,12 @@ export default function MembresPage() {
           </FormRow>
 
           {/* Compte — mot de passe */}
-          <Field label={editing ? "Nouveau mot de passe (laisser vide pour ne pas changer)" : "Mot de passe"} required={!editing}>
-            <Input type="password" placeholder="6 caractères min." value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+          <Field label={editing ? "Nouveau mot de passe (laisser vide pour ne pas changer)" : "Mot de passe"} required={!editing} hint="6 caractères min.">
+            <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
           </Field>
           {(form.password || !editing) && (
-            <Field label="Confirmer le mot de passe" required={!editing}>
-              <Input type="password" placeholder="Identique" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} />
+            <Field label="Confirmer le mot de passe" required={!editing} hint="Identique au mot de passe">
+              <Input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} />
             </Field>
           )}
 
@@ -355,8 +355,8 @@ export default function MembresPage() {
             </span>
           </label>
 
-          <Field label="Notes">
-            <Textarea placeholder="Compétences, disponibilités, commentaire…" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          <Field label="Notes" hint="Compétences, disponibilités, commentaire…">
+            <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </Field>
           <SaveButton label={saving ? "Enregistrement…" : "Enregistrer"} />
           {editing && <DeleteButton onClick={handleDelete} label="Supprimer ce compte" />}

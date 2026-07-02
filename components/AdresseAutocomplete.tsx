@@ -78,6 +78,7 @@ export default function AdresseAutocomplete({
         onChange={e => onChange(e.target.value)}
         onFocus={() => { if (suggestions.length) setOpen(true) }}
         placeholder={placeholder ?? "Commencez à taper l'adresse…"}
+        aria-label="Rechercher une adresse"
         autoComplete="off"
       />
       {open && (

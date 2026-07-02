@@ -532,6 +532,7 @@ function FilterBar({ search, onSearchChange, hasActiveFilters, onReset, count, t
         <input
           type="search"
           placeholder="Rechercher…"
+          aria-label="Rechercher une subvention"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-border bg-surface focus:outline-none focus:border-subventions"

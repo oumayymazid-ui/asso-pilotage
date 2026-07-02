@@ -153,6 +153,7 @@ function AtelierSelect({
                 onChange={e => { setQuery(e.target.value); setHighlight(0) }}
                 onKeyDown={onKeyDown}
                 placeholder="Rechercher un atelier…"
+                aria-label="Rechercher un atelier"
                 className="w-full text-sm rounded-lg border border-border bg-surface pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-ateliers/30"
               />
             </div>
@@ -426,6 +427,7 @@ export default function EmargementPage() {
                             onChange={e => changeCommentaire(b.ID_Personne, e.target.value)}
                             onBlur={e => saveCommentaire(b.ID_Personne, row.statut, e.target.value)}
                             placeholder="Commentaire…"
+                            aria-label={`Commentaire pour ${b.Prenom} ${b.Nom}`}
                             className="w-full text-sm rounded-lg border border-border bg-surface px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ateliers/30"
                           />
                         </td>

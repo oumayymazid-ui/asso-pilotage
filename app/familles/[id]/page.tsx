@@ -319,8 +319,8 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
               <Input value={String(familleForm.Ville ?? "")} onChange={e => setFamilleForm(f => ({ ...f, Ville: e.target.value }))} />
             </Field>
           </FormRow>
-          <Field label="Quartier QVP">
-            <Input value={String(familleForm.Quartier_QVP ?? "")} onChange={e => setFamilleForm(f => ({ ...f, Quartier_QVP: e.target.value }))} placeholder="ex. Bellevue Nantes" />
+          <Field label="Quartier QVP" hint="ex. Bellevue Nantes">
+            <Input value={String(familleForm.Quartier_QVP ?? "")} onChange={e => setFamilleForm(f => ({ ...f, Quartier_QVP: e.target.value }))} />
           </Field>
           <SaveButton accent="familles" />
           <DeleteButton onClick={() => router.push("/familles")} />
@@ -397,8 +397,8 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
                 </Field>
               </FormRow>
               {membreForm.Role === "Enfant" && (
-                <Field label="Niveau scolaire">
-                  <Input value={String(membreForm.Niveau ?? "")} onChange={e => setMembreForm(f => ({ ...f, Niveau: e.target.value }))} placeholder="ex. CE2, 5ᵉ…" />
+                <Field label="Niveau scolaire" hint="ex. CE2, 5ᵉ…">
+                  <Input value={String(membreForm.Niveau ?? "")} onChange={e => setMembreForm(f => ({ ...f, Niveau: e.target.value }))} />
                 </Field>
               )}
               <FormRow>

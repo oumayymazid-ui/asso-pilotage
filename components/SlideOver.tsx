@@ -72,12 +72,18 @@ export default function SlideOver({ open, onClose, title, subtitle, children, wi
 // ─────────────────────────────────────────────────────────────────────────────
 // Composants de formulaire réutilisables
 // ─────────────────────────────────────────────────────────────────────────────
-export function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+export function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: React.ReactNode; children: React.ReactNode }) {
   const fieldId = label.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
+  const hintId = hint ? `${fieldId}-hint` : undefined
 
+  // Aide à la saisie persistante (remplace les placeholders) : reliée au champ via
+  // aria-describedby pour être annoncée par les lecteurs d'écran.
   const childWithId = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
-      return React.cloneElement(child as React.ReactElement<{ id?: string }>, { id: fieldId })
+      return React.cloneElement(child as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+        id: fieldId,
+        ...(hintId ? { "aria-describedby": hintId } : {}),
+      })
     }
     return child
   })
@@ -87,6 +93,7 @@ export function Field({ label, required, children }: { label: string; required?:
       <label htmlFor={fieldId} className="text-xs font-semibold text-muted uppercase tracking-wider">
         {label}{required && <span className="text-alert ml-0.5">*</span>}
       </label>
+      {hint && <p id={hintId} className="text-xs text-muted normal-case tracking-normal font-normal -mt-0.5">{hint}</p>}
       {childWithId}
     </div>
   )

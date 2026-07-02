@@ -51,9 +51,10 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Email</label>
+              <p id="login-email-hint" className="text-xs text-muted normal-case tracking-normal font-normal -mt-0.5 mb-1">ex. vous@asso.fr</p>
               <input
                 type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="vous@asso.fr"
+                aria-describedby="login-email-hint"
                 className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ateliers/40 focus:border-ateliers"
               />
             </div>
@@ -62,7 +63,6 @@ export default function LoginPage() {
               <label className="block text-xs font-medium text-foreground mb-1">Mot de passe</label>
               <input
                 type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
                 className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ateliers/40 focus:border-ateliers"
               />
             </div>
