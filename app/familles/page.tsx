@@ -108,7 +108,7 @@ export default function FamillesPage() {
       {/* En-tête */}
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-familles-dark">Bénéficiaires</h1>
+          <h1 className="text-2xl font-bold text-familles-dark">Familles</h1>
           <p className="text-sm text-muted mt-0.5">Familles et membres suivis par l&apos;association</p>
         </div>
         {onglet === "familles" && (

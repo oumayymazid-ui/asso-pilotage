@@ -136,7 +136,7 @@ const plateformeStyle: Record<Plateforme, string> = {
 // Aperçu du post (simulation réseau social)
 // ──────────────────────────────────────────────
 const ASSO_NAME = "Ada Tech School"
-const ASSO_HANDLE = "adatechschool"
+const ASSO_HANDLE = "Area Nantes"
 const ASSO_INITIALS = "AT"
 
 function PreviewAvatar({ size = 9 }: { size?: 7 | 9 }) {
