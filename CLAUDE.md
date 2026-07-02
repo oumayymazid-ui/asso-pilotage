@@ -208,7 +208,7 @@ IDs réservés : 9001–9099. Supprimer ce fichier + le dossier `app/dev/` avant
 
 - **GitHub** : `github.com/anais0210/asso-pilotage`
 - **Vercel** : `asso-inky.vercel.app` (auto-deploy sur push `main`)
-- Compte démo : `admin@asso.fr` / `admin1234`
+- Compte démo : `admin@asso.fr` / `AdminAsso2026!`
 
 @AGENTS.md
 

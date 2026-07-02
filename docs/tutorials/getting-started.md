@@ -26,7 +26,7 @@ npm run dev -- --port 3001
 
 Ouvrir [http://localhost:3001](http://localhost:3001).
 
-Connexion avec le compte démo : `admin@asso.fr` / `admin1234`.
+Connexion avec le compte démo : `admin@asso.fr` / `AdminAsso2026!`.
 
 > **Pourquoi le port 3001 ?** Le port 3000 est souvent occupé par d'autres projets du workspace. C'est une convention locale — Vercel utilise le port configuré automatiquement.
 

@@ -95,7 +95,7 @@ Tu dois voir apparaître :
 Ouvre ton navigateur et va sur **[http://localhost:3000](http://localhost:3000)** 🎉
 
 > **Compte de connexion (développement) :**
-> Email : `admin@asso.fr` — Mot de passe : `admin1234`
+> Email : `admin@asso.fr` — Mot de passe : `AdminAsso2026!`
 
 ---
 

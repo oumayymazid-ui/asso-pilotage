@@ -177,9 +177,9 @@ GEMINI_API_KEY=...
 - [ ] **Supprimer** l'ancien compte de service Google (ou sa clé) une fois le nouveau en place.
 - [ ] **Retirer** les anciens accès personnels au Sheet / aux dossiers Drive.
 - [ ] **Retirer** les collaborateurs qui ne doivent plus avoir accès au dépôt.
-- [ ] Changer le mot de passe du **compte démo applicatif** (`admin@asso.fr` / `admin1234`).
-      ⚠️ L'authentification est en localStorage (non sécurisée, voir [ADR 003](../explanation/adr/003-auth-localstorage.md)) :
-      ne pas y stocker de données sensibles tant qu'un vrai backend d'auth n'est pas en place.
+- [ ] Changer le mot de passe du **compte démo applicatif** (`admin@asso.fr` / `AdminAsso2026!`).
+      L'authentification passe par Supabase (voir [ADR 007](../explanation/adr/007-auth-supabase.md)) — l'ancien
+      schéma localStorage décrit dans [ADR 003](../explanation/adr/003-auth-localstorage.md) est obsolète.
 - [ ] Ne **jamais** committer le JSON du compte de service ni les clés dans le dépôt.
 
 ---
