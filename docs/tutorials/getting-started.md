@@ -85,7 +85,7 @@ git commit -m "feat: ma première modification"
 git push
 ```
 
-Vercel déclenche automatiquement un déploiement sur `main`. Voir le résultat sur [asso-inky.vercel.app](https://asso-inky.vercel.app).
+Vercel déclenche automatiquement un déploiement sur `main`. Voir le résultat sur [asso-pilotage.vercel.app](https://asso-pilotage.vercel.app).
 
 ---
 

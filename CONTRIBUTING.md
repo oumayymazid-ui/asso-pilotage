@@ -8,7 +8,7 @@
 ## Les 3 branches à connaître
 
 ```
-main  ──────────────────────────────────────────▶  production (asso-inky.vercel.app)
+main  ──────────────────────────────────────────▶  production (asso-pilotage.vercel.app)
   ↑ merge uniquement via PR validée
 dev   ──────────────────────────────────────────▶  intégration (branche commune)
   ↑ merge uniquement via PR validée

@@ -23,7 +23,7 @@ vercel ls --prod
 
 Ou dans le dashboard Vercel : [vercel.com/anais-projects-d34cd3c6/asso](https://vercel.com/anais-projects-d34cd3c6/asso)
 
-**URL de production stable** : [asso-inky.vercel.app](https://asso-inky.vercel.app)
+**URL de production stable** : [asso-pilotage.vercel.app](https://asso-pilotage.vercel.app)
 
 ## Avant de pousser — checklist
 

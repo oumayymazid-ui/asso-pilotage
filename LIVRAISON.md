@@ -43,7 +43,7 @@ Il centralise :
 | IA | Google Gemini (génération de posts + OCR bulletins) |
 | Hébergement | Vercel (déploiement automatique) |
 | Dépôt | github.com/anais0210/asso-pilotage |
-| URL production | asso-inky.vercel.app |
+| URL production | asso-pilotage.vercel.app |
 
 > **Important — où vivent les données :**
 > - **Authentification** : Supabase (comptes partagés, vérifiés côté serveur).
@@ -154,7 +154,7 @@ Il centralise :
 
 ### URL de production
 ```
-https://asso-inky.vercel.app
+https://asso-pilotage.vercel.app
 ```
 
 ### Déploiement automatique
@@ -203,7 +203,7 @@ git push origin main
 - Renseigner `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY` (Vercel + `.env.local`).
 
 ### Étape 3 — Première connexion
-1. Ouvrir `https://asso-inky.vercel.app`
+1. Ouvrir `https://asso-pilotage.vercel.app`
 2. Se connecter avec `admin@asso.fr` + le mot de passe choisi à l'étape 1
 3. `/compte` → **Changer le mot de passe**
 
@@ -286,7 +286,7 @@ signature) pour pré-remplir le formulaire d'ajout de membre.
 |---|---|
 | Développement | anais.camille.sparesotto@gmail.com |
 | Dépôt GitHub | github.com/anais0210/asso-pilotage |
-| Hébergement | asso-inky.vercel.app (Vercel) |
+| Hébergement | asso-pilotage.vercel.app (Vercel) |
 
 ### En cas de problème
 

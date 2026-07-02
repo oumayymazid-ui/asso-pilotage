@@ -132,7 +132,7 @@ L'OCR des bulletins d'inscription (`app/api/ocr/route.ts`) et la génération IA
    | `GEMINI_API_KEY` | la clé Gemini (étape 3) |
 
 5. **Deploy**. Vérifier le build (0 erreur).
-6. **Settings → Domains** : reconfigurer le domaine de production (`asso-inky.vercel.app` ou un domaine propre à l'asso).
+6. **Settings → Domains** : reconfigurer le domaine de production (`asso-pilotage.vercel.app` ou un domaine propre à l'asso).
 
 > L'ancien projet Vercel personnel peut être **supprimé** une fois le nouveau validé.
 
@@ -149,7 +149,7 @@ Plusieurs fichiers citent en dur l'ancien compte (`anais0210`) ou l'URL Vercel. 
 
 Repérer les occurrences :
 ```bash
-grep -rlnE "anais0210|asso-inky|anais-projects" . | grep -vE "node_modules|package-lock|\.next/"
+grep -rlnE "anais0210|asso-pilotage\.vercel|anais-projects" . | grep -vE "node_modules|package-lock|\.next/"
 ```
 
 ---
@@ -193,5 +193,5 @@ GEMINI_API_KEY=...
 - [ ] Projet Vercel de l'asso déployé avec les 3 variables d'env → build OK
 - [ ] Module **Familles** testé en prod (créer/lire/modifier une famille, un paiement, un document)
 - [ ] Génération IA testée (module **Communication**)
-- [ ] Références `anais0210` / `asso-inky` mises à jour dans le code
+- [ ] Références `anais0210` / `asso-pilotage.vercel.app` mises à jour dans le code
 - [ ] Anciens accès et clés révoqués

@@ -4,7 +4,7 @@ Dashboard de pilotage pour une association de formation numérique.
 **Next.js 16.2.6 · React 19 · Tailwind v4 · TypeScript**
 Auth **Supabase** · données **Google Sheets** (API REST v4 — Familles, Assiduité, **Ateliers**, Communication) + `localStorage` (autres modules) · IA **Gemini** (posts & OCR bulletins)
 
-🌐 **Production** : [asso-inky.vercel.app](https://asso-inky.vercel.app)
+🌐 **Production** : [asso-pilotage.vercel.app](https://asso-pilotage.vercel.app)
 📦 **Repo** : [github.com/anais0210/asso-pilotage](https://github.com/anais0210/asso-pilotage)
 
 ---
