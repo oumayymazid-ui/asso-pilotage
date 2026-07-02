@@ -115,6 +115,13 @@ export default function DashboardPage() {
           </Link>
         ))}
       </nav>
+
+      {/* Liens légaux — le tableau de bord n'a pas de sidebar (voir AuthGate), donc pas d'autre accès */}
+      <nav aria-label="Pages légales" className="mt-10 flex flex-wrap gap-x-4 gap-y-1">
+        <Link href="/mentions-legales" className="text-xs text-muted hover:text-foreground transition-colors">Mentions légales</Link>
+        <Link href="/confidentialite" className="text-xs text-muted hover:text-foreground transition-colors">Confidentialité</Link>
+        <Link href="/accessibilite" className="text-xs text-muted hover:text-foreground transition-colors">Accessibilité</Link>
+      </nav>
     </div>
   )
 }

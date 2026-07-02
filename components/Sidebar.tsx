@@ -103,6 +103,13 @@ export default function Sidebar() {
           </div>
         </div>
       )}
+
+      {/* Liens légaux — accessibles aussi depuis /login (composant non partagé, garder les deux à jour) */}
+      <nav aria-label="Pages légales" className="px-4 pb-4 flex flex-wrap gap-x-3 gap-y-1">
+        <Link href="/mentions-legales" className="text-[11px] text-muted hover:text-foreground transition-colors">Mentions légales</Link>
+        <Link href="/confidentialite" className="text-[11px] text-muted hover:text-foreground transition-colors">Confidentialité</Link>
+        <Link href="/accessibilite" className="text-[11px] text-muted hover:text-foreground transition-colors">Accessibilité</Link>
+      </nav>
     </aside>
   )
 }
