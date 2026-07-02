@@ -2,7 +2,7 @@
 
 Dashboard de pilotage pour une association de formation numérique.
 **Next.js 16.2.6 · React 19 · Tailwind v4 · TypeScript**
-Auth **Supabase** · données **Google Sheets** (API REST v4 — Familles, Assiduité, **Ateliers**, Communication) + `localStorage` (autres modules) · IA **Gemini** (posts & OCR bulletins)
+Auth **Supabase** · données **Google Sheets** (Familles, Assiduité, Ateliers, Communication, Notes, Test de positionnement, Veille subventions) + `localStorage` (autres modules) · IA **Gemini** (génération de posts, OCR bulletins, tests de positionnement)
 
 🌐 **Production** : [asso-pilotage.vercel.app](https://asso-pilotage.vercel.app)
 📦 **Repo** : [github.com/anais0210/asso-pilotage](https://github.com/anais0210/asso-pilotage)
@@ -66,16 +66,18 @@ Pour comprendre pourquoi les choses sont faites ainsi.
 | Module | URL | Description |
 |---|---|---|
 | Vue d'ensemble | `/dashboard` | KPIs globaux, alertes |
-| Familles | `/familles` | Familles & membres — **Google Sheets** (paiements, documents Drive, suivi, **OCR bulletins**) |
-| Assiduité | `/assiduite` | Hub assiduité — **Google Sheets** (présences, alertes décrochage, recherche élève) |
 | Émargement | `/emargement` | Présences par séance |
-| Finances | `/finances` | Demandes de financement + inscriptions |
-| Ateliers | `/ateliers` | Planning, notes apprenantes, composition de groupes |
-| Communication | `/communication` | Calendrier éditorial + kanban (Brouillon → À valider → Validé → Publié) + génération IA (Gemini) |
-| Membres | `/membres` | Annuaire équipe |
+| Assiduité | `/assiduite` | Hub assiduité — **Google Sheets** (présences, alertes décrochage, recherche élève) |
+| Veille subventions | `/veille-subventions` | Suivi des appels à projets — **Google Sheets** (Apps Script : lecture CSV + édition statut/suppression) |
+| Ateliers | `/ateliers` | Planning, notes apprenantes, composition de groupes — **Google Sheets** |
+| Familles | `/familles` | Familles & membres — **Google Sheets** (paiements, documents Drive, suivi, **OCR bulletins**) |
+| Test de positionnement | `/positionnement` | Génère un test adapté au niveau du bénéficiaire — **Gemini** (texte + audio TTS) |
+| Notes | `/notes` | Saisie rapide des notes d'évaluation (élèves & parents) — **Google Sheets** |
+| Communication | `/communication` | Calendrier éditorial + kanban (Brouillon → À valider → Validé → Publié) + génération IA (Gemini) — **Google Sheets** |
+| Équipe | `/membres` | Annuaire équipe (**admins uniquement**) |
 | Mon compte | `/compte` | Profil + mot de passe (+ **gestion des comptes** pour les admins) |
 
-> **Auth & routes API** : toutes les routes `/api/*` (`sheets`, `assiduite`, `ocr`, `generate-post`, `admin/users`) sont protégées par la session Supabase (401 si non authentifié).
+> **Auth & routes API** : toutes les routes `/api/*` (`sheets`, `assiduite`, `subventions-sheet`, `ocr`, `generate-post`, `generate-positionnement`, `admin/users`) sont protégées par la session Supabase (401 si non authentifié).
 
 ---
 
