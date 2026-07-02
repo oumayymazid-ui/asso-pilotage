@@ -529,7 +529,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
           </h2>
           <button onClick={openReinscription}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-familles text-white text-xs font-medium hover:bg-familles-dark transition-colors">
-            <Plus size={13} /> Réinscription
+            <Plus size={13} /> {inscriptions.length === 0 ? "Inscription" : "Réinscription"}
           </button>
         </div>
         {inscriptions.length === 0 ? (
@@ -715,7 +715,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       </SlideOver>
 
       {/* SlideOver réinscription */}
-      <SlideOver open={reinscOpen} onClose={() => setReinscOpen(false)} title="Réinscription" width="md">
+      <SlideOver open={reinscOpen} onClose={() => setReinscOpen(false)} title={inscriptions.length === 0 ? "Inscription" : "Réinscription"} width="md">
         <form onSubmit={e => { e.preventDefault(); handleSaveReinscription() }} className="flex flex-col gap-4">
           <FormRow>
             <Field label="Année scolaire" required>
