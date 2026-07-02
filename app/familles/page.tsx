@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Search, Plus } from "lucide-react"
 import SlideOver, { Field, Input, FormRow, SaveButton } from "@/components/SlideOver"
 import AdresseAutocomplete from "@/components/AdresseAutocomplete"
@@ -28,6 +29,7 @@ const statutStyle: Record<string, string> = {
 const emptyForm = { Nom_Famille: "", Adresse: "", Code_Postal: "", Ville: "", Quartier_QVP: "" }
 
 export default function FamillesPage() {
+  const router = useRouter()
   const [onglet, setOnglet]       = useState<Onglet>("familles")
   const [familles, setFamilles]   = useState<FamilleSheet[]>([])
   const [membres, setMembres]     = useState<MembreSheet[]>([])
@@ -54,10 +56,15 @@ export default function FamillesPage() {
   function switchOnglet(o: Onglet) { setOnglet(o); setSearch("") }
 
   async function handleSaveFamille() {
-    await addFamille({ Nom_Famille: form.Nom_Famille, Adresse: form.Adresse, Code_Postal: form.Code_Postal, Ville: form.Ville, Quartier_QVP: form.Quartier_QVP })
-    await loadData()
+    const res = await addFamille({ Nom_Famille: form.Nom_Famille, Adresse: form.Adresse, Code_Postal: form.Code_Postal, Ville: form.Ville, Quartier_QVP: form.Quartier_QVP })
     setForm(emptyForm)
     setSlideOpen(false)
+    // Redirige vers la fiche de la famille qui vient d'être créée
+    if (res?.ID_Famille) {
+      router.push(`/familles/${res.ID_Famille}`)
+    } else {
+      await loadData()
+    }
   }
 
   // normalise (minuscules + sans accents) pour une recherche tolérante
