@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import SlideOver, { Field, Input, Select, Textarea, FormRow, SaveButton, DeleteButton } from "@/components/SlideOver"
 import JournalSuivi from "@/components/JournalSuivi"
 import DateInput from "@/components/DateInput"
-import { ChevronRight, Plus, Pencil, Upload, FileText, ExternalLink, X } from "lucide-react"
+import { ChevronRight, ChevronDown, Plus, Pencil, Upload, FileText, ExternalLink, X } from "lucide-react"
 import {
   fetchFamilles, fetchMembre, updateMembre, deleteMembre,
   addPaiement, updatePaiement, deletePaiement, addInscription, updateInscription, uploadFichier,
@@ -136,6 +136,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [docType, setDocType]   = useState("")
   const [docFile, setDocFile]   = useState<File | null>(null)
   const [docSaving, setDocSaving] = useState(false)
+  const [openDocTypes, setOpenDocTypes] = useState<string[]>([])
 
   const loadData = useCallback(async () => {
     setLoadError(false)
@@ -497,44 +498,56 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* Documents : statut de présence (Oui/Non) + fichiers joints */}
+      {/* Documents : un type par ligne, dépliable pour voir les fichiers joints */}
       <div className="bg-surface border border-border rounded-xl p-5 mb-6">
         <h2 className="text-sm font-semibold text-foreground mb-3">Documents</h2>
 
-        {/* Statut Oui/Non par type de document (dérivé des fichiers joints) */}
-        <ul className="space-y-2 mb-4">
-          {piecesStatut.map(({ cat, present }) => (
-            <li key={cat} className="flex items-center justify-between gap-3">
-              <span className="text-sm text-foreground">{cat}</span>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${present ? "bg-finances-light text-finances-dark" : "bg-slate-100 text-slate-500"}`}>
-                {present ? "Oui" : "Non"}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <ul className="divide-y divide-border">
+          {piecesStatut.map(({ cat, present }) => {
+            const fichiers = documents.filter(d => d.Categorie === cat)
+            const ouvert = openDocTypes.includes(cat)
+            return (
+              <li key={cat}>
+                {/* Ligne du type : cliquable (dépliage) uniquement s'il y a des fichiers */}
+                <div
+                  role={present ? "button" : undefined}
+                  onClick={present ? () => setOpenDocTypes(o => o.includes(cat) ? o.filter(c => c !== cat) : [...o, cat]) : undefined}
+                  className={`flex items-center justify-between gap-3 py-2.5 ${present ? "cursor-pointer" : ""}`}
+                >
+                  <span className="flex items-center gap-1.5 text-sm text-foreground">
+                    {present
+                      ? <ChevronDown size={15} className={`shrink-0 text-muted transition-transform ${ouvert ? "" : "-rotate-90"}`} />
+                      : <span className="w-[15px] shrink-0" />}
+                    {cat}
+                  </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${present ? "bg-finances-light text-finances-dark" : "bg-slate-100 text-slate-500"}`}>
+                    {present ? "Oui" : "Non"}
+                  </span>
+                </div>
 
-        {/* Fichiers effectivement joints (aperçu Drive + suppression) */}
-        {documents.length > 0 && (
-          <>
-            <p className="text-xs font-medium text-muted mb-2 pt-3 border-t border-border">Fichiers joints ({documents.length})</p>
-            <ul className="space-y-2">
-              {documents.map(doc => (
-                <li key={doc.ID_Doc} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-2.5">
-                  <a href={doc.URL} target="_blank" rel="noopener noreferrer"
-                     className="flex items-center gap-2 min-w-0 text-sm text-familles-dark hover:underline">
-                    <FileText size={15} className="shrink-0" />
-                    <span className="truncate">{doc.Categorie || "Document"}</span>
-                    <ExternalLink size={13} className="shrink-0 text-muted" />
-                  </a>
-                  <button onClick={() => handleDeleteDocument(doc.ID_Doc)} aria-label="Supprimer ce document" title="Supprimer"
-                    className="shrink-0 p-1 rounded text-muted hover:text-absences-dark hover:bg-absences-light transition-colors">
-                    <X size={14} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+                {/* Fichiers rattachés à ce type (dépliés) */}
+                {present && ouvert && (
+                  <ul className="space-y-2 pb-3 pl-[22px]">
+                    {fichiers.map(doc => (
+                      <li key={doc.ID_Doc} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-4 py-2.5">
+                        <a href={doc.URL} target="_blank" rel="noopener noreferrer"
+                           className="flex items-center gap-2 min-w-0 text-sm text-familles-dark hover:underline">
+                          <FileText size={15} className="shrink-0" />
+                          <span className="truncate">{doc.Categorie || "Document"}</span>
+                          <ExternalLink size={13} className="shrink-0 text-muted" />
+                        </a>
+                        <button onClick={() => handleDeleteDocument(doc.ID_Doc)} aria-label="Supprimer ce document" title="Supprimer"
+                          className="shrink-0 p-1 rounded text-muted hover:text-absences-dark hover:bg-absences-light transition-colors">
+                          <X size={14} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       </div>
 
       {/* Journal : commentaires + appels + emails */}
