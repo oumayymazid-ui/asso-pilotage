@@ -27,16 +27,22 @@ app/
 ├── login/          Page de connexion / inscription (publique)
 ├── dashboard/      Vue d'ensemble — KPIs globaux
 ├── emargement/     Émargement numérique par séance
-├── absences/       Suivi absences du jour + historique
-├── finances/       Demandes de financement + inscriptions
-├── ateliers/       Planning + notes apprenantes + composition groupes
-├── communication/  Calendrier éditorial + kanban suivi posts + archive publiés
-├── benevoles/      Disponibilités bénévoles + gestion événements
-├── membres/        Annuaire membres (rôles, statuts, CRUD)
-└── familles/       Bénéficiaires — familles, parents, enfants ✅ NOUVEAU
-    ├── page.tsx              Listing 3 onglets (Familles / Parents / Enfants)
-    ├── [id]/page.tsx         Fiche famille + ajout membre
-    └── [id]/membre/[membreId]/page.tsx  Fiche membre individuelle
+├── assiduite/      Hub assiduité — Google Sheets (présences, décrochage)
+├── veille-subventions/  Suivi appels à projets — Google Sheets (Apps Script)
+├── ateliers/       Planning + notes apprenantes + composition groupes — Google Sheets
+├── familles/       Bénéficiaires — familles, parents, enfants — Google Sheets
+│   ├── page.tsx              Listing (Familles / Membres)
+│   ├── [id]/page.tsx         Fiche famille + ajout membre
+│   └── [id]/membre/[membreId]/page.tsx  Fiche membre individuelle
+├── positionnement/ Génération de tests de positionnement — Gemini (texte + TTS)
+├── notes/          Saisie rapide des notes d'évaluation — Google Sheets
+├── communication/  Calendrier éditorial + kanban suivi posts — Google Sheets
+├── membres/        Annuaire équipe (admins uniquement)
+├── compte/         Profil + mot de passe (+ gestion des comptes pour admins)
+└── (pages légales) mentions-legales/ · confidentialite/ · accessibilite/  (publiques)
+
+> ⚠️ Modules retirés : `absences/`, `finances/`, `benevoles/` n'existent plus
+> (les tokens couleur `absences`/`finances` restent en revanche définis et utilisés).
 
 components/
 ├── Sidebar.tsx     Navigation + chip utilisateur connecté
@@ -47,7 +53,7 @@ components/
 lib/
 ├── auth.ts             Helpers auth (login, register, logout, getSession)
 ├── auth-context.tsx    Provider React + hook useAuth()
-├── mock-data.ts        Données mockées (absences, finances, ateliers, com, bénévoles)
+├── mock-data.ts        Données mockées (absences, ateliers, communication, membres, bénévoles)
 ├── emargement-data.ts  Séances + présences initiales
 ├── sheets-api.ts       Couche client module Familles (fetch → /api/sheets)
 └── google-sheets-server.ts  Clients Sheets + Drive (compte de service, côté serveur)
