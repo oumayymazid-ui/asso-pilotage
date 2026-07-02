@@ -60,17 +60,35 @@ app/api/
 
 ## Conventions impératives
 
-### Couleurs Tailwind v4 — utiliser les classes sémantiques
-```tsx
-// ✅ Correct
-"bg-absences text-finances-dark border-ateliers/20"
+### Charte graphique « Estuaire » — à respecter pour tout ce qui touche l'UI
+> Guide complet : `docs/reference/charte-graphique-estuaire.md` — **le lire avant
+> toute modification de style, couleur, police ou composant visuel.**
 
-// ❌ Interdit
-"bg-[var(--color-absences)]"
-```
-Toutes les couleurs sont définies dans `app/globals.css` sous `@theme inline`.
-Chaque module a sa couleur : `absences`, `finances`, `ateliers`, `communication`, `benevoles`.
-Variantes disponibles : `{module}`, `{module}-light`, `{module}-dark`.
+- **Couleurs Tailwind v4 — classes sémantiques uniquement, jamais de valeur en dur.**
+  ```tsx
+  // ✅ Correct
+  "bg-absences text-finances-dark border-ateliers/20"
+
+  // ❌ Interdit
+  "bg-[var(--color-absences)]"
+  ```
+  Toutes les couleurs sont définies dans `app/globals.css` sous `@theme inline`.
+  Variantes disponibles : `{module}`, `{module}-light`, `{module}-dark`.
+- **Palette unifiée sur 3 teintes de marque** (plus de couleur unique par module) :
+  teal `#159c99` (ateliers, bénévoles, positionnement, notes, émargement) ·
+  vert forêt `#1b6840` (finances, familles) · doré `#d99a1e` (communication,
+  absences, assiduité, veille subventions). Modules sans couleur propre (Équipe,
+  Compte) → `bg-brand` (teal de marque).
+  ⚠️ Sur fond doré, utiliser la variante `-dark` avec texte blanc (le doré clair
+  échoue le contraste RGAA) — les autres teintes utilisent la couleur pleine.
+- **Typographie** : titres (`h1`–`h6`) en Poppins, texte courant en Inter — réglé
+  globalement via `app/layout.tsx` (`next/font`) + `globals.css`, rien à faire
+  page par page.
+- **`SaveButton`** (`components/SlideOver.tsx`) accepte une prop `accent` (module
+  courant, défaut `brand`) — utiliser `<SaveButton accent="finances" />` plutôt
+  qu'un style custom.
+- ⚠️ Turbopack ne recharge pas à chaud les changements de `@theme` (`globals.css`)
+  ni de `next/font` (`layout.tsx`) — redémarrer `npm run dev` après modification.
 
 ### Pattern CRUD standard
 **Chaque page avec données modifiables** suit ce pattern :
@@ -496,7 +514,8 @@ Overall average: **60-90% token reduction** on common development operations.
 - **Journal de suivi** : commentaires / appels / emails horodatés, filtrable par type, groupé par date (`components/JournalSuivi.tsx`)
 
 ### Couleur du module
-`familles` / `familles-light` / `familles-dark` (violet).
+`familles` / `familles-light` / `familles-dark` (vert forêt — charte « Estuaire »,
+voir `docs/reference/charte-graphique-estuaire.md`).
 
 ---
 
