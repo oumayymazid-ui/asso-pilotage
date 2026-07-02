@@ -89,7 +89,7 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
       const [f, m] = await Promise.all([fetchFamilles(), fetchMembres(id)])
       setFamilles(f)
       setMembres(m)
-    } catch (e) { console.error(e) }
+    } catch { console.error("[familles] échec du chargement") }
     finally { setLoading(false) }
   }, [id])
 
@@ -123,7 +123,7 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
       const formData = new FormData()
       formData.append("file", file)
       const res = await fetch("/api/ocr", { method: "POST", body: formData })
-      if (!res.ok) { console.error("[ocr] erreur", await res.text()); return }
+      if (!res.ok) { console.error("[ocr] échec de l'analyse, statut", res.status); return }
       const data = await res.json()
       setMembreForm(f => ({
         ...f,
@@ -133,7 +133,7 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
         Date_Naissance: parseDateOcr(data.date_naissance) || (f.Date_Naissance ?? ""),
       }))
       setOcrDone(true)
-    } catch (e) { console.error("[ocr]", e) }
+    } catch { console.error("[ocr] échec de l'analyse") }
     finally { setOcrLoading(false) }
   }
 
@@ -152,7 +152,7 @@ export default function FicheFamillePage({ params }: { params: Promise<{ id: str
             mimeType:   membreFichier.type || "application/pdf",
             dataBase64: b64,
           })
-        } catch (e) { console.error("[upload doc]", e) }
+        } catch { console.error("[upload doc] échec de l'upload") }
       }
     }
     await loadData()

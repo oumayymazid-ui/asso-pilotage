@@ -174,7 +174,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       } else {
         setInscriptions(fetchedInscriptions)
       }
-    } catch (e) { console.error(e) }
+    } catch { console.error("[familles] échec du chargement du membre") }
     finally { setLoading(false) }
   }, [id, membreId])
 
@@ -302,7 +302,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       await uploadFichier({ idMembre: membreId, categorie: docType, nom: docFile.name, mimeType: docFile.type, dataBase64 })
       await loadData()
       setDocOpen(false)
-    } catch (e) { console.error("Upload du document échoué", e) }
+    } catch { console.error("[familles] échec de l'upload du document") }
     finally { setDocSaving(false) }
   }
 

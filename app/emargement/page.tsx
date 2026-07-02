@@ -211,9 +211,10 @@ export default function EmargementPage() {
 
       {/* Sélecteur d'atelier */}
       <div className="mb-6">
-        <label className="text-xs font-semibold text-muted uppercase tracking-wider block mb-2">Atelier</label>
+        <label htmlFor="emargement-atelier" className="text-xs font-semibold text-muted uppercase tracking-wider block mb-2">Atelier</label>
         <div className="relative w-full max-w-md">
           <select
+            id="emargement-atelier"
             value={selectedId}
             onChange={e => { setSelectedId(e.target.value); localStorage.setItem(S_SELECTED, e.target.value) }}
             className="w-full appearance-none bg-surface border border-border rounded-xl px-4 py-3 pr-10 text-sm font-medium text-foreground cursor-pointer focus:outline-none focus:ring-2 focus:ring-ateliers"

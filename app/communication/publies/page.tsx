@@ -217,7 +217,7 @@ export default function PubliesPage() {
                 <div className="flex gap-2 flex-wrap">
                   {(selected.media ?? []).map((m, i) =>
                     m.type === "image" && m.url
-                      ? <img key={i} src={m.url} alt={m.nom} className="h-20 w-20 rounded-lg object-cover border border-border" />
+                      ? <img key={i} src={m.url} alt={m.nom} width={80} height={80} loading="lazy" className="h-20 w-20 rounded-lg object-cover border border-border" />
                       : <div key={i} className="h-20 w-20 rounded-lg border border-border bg-slate-100 flex items-center justify-center text-[10px] text-muted text-center p-1 leading-tight">{m.type === "video" ? "🎬 Vidéo" : m.nom}</div>
                   )}
                 </div>

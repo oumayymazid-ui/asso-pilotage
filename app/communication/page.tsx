@@ -969,7 +969,7 @@ export default function CommunicationPage() {
                   {(form.media ?? []).map((m, i) => (
                     <div key={i} className="relative group">
                       {m.type === "image" && (m.preview ?? m.url)
-                        ? <img src={m.preview ?? m.url} alt={m.nom} className="h-16 w-16 rounded-lg object-cover border border-border" />
+                        ? <img src={m.preview ?? m.url} alt={m.nom} width={64} height={64} loading="lazy" className="h-16 w-16 rounded-lg object-cover border border-border" />
                         : <div className="h-16 w-16 rounded-lg border border-border bg-slate-100 flex items-center justify-center text-[10px] text-muted text-center p-1 leading-tight">{m.type === "video" ? "🎬 Vidéo" : m.nom}</div>
                       }
                       {m.uploading && (

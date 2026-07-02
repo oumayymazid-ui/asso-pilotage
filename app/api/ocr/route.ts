@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
     if (!raw) return NextResponse.json({ error: "Réponse Gemini vide" }, { status: 502 })
 
     return NextResponse.json(JSON.parse(raw))
-  } catch (e) {
-    console.error("[ocr]", e)
-    return NextResponse.json({ error: String(e) }, { status: 500 })
+  } catch {
+    console.error("[ocr] échec de l'analyse du document")
+    return NextResponse.json({ error: "Échec de l'analyse du document" }, { status: 500 })
   }
 }

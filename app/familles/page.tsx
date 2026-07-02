@@ -145,6 +145,7 @@ export default function FamillesPage() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
+            aria-label={onglet === "familles" ? "Rechercher par nom de famille" : "Rechercher un membre"}
             placeholder={onglet === "familles" ? "Rechercher par nom de famille…" : "Rechercher un membre…"}
             value={search}
             onChange={e => setSearch(e.target.value)}

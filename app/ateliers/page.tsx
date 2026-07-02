@@ -642,7 +642,7 @@ const statutSessionStyle: Record<SessionStatut, string> = {
   "planifié":  "bg-ateliers-light text-ateliers-dark",
   "en cours":  "bg-absences-light text-absences-dark",
   "terminé":   "bg-finances-light text-finances-dark",
-  "annulé":    "bg-slate-100 text-slate-500",
+  "annulé":    "bg-slate-100 text-slate-600",
 }
 
 const niveauStyle: Record<NiveauBenef, string> = {
@@ -1162,6 +1162,7 @@ function AteliersTab({
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
+            aria-label="Rechercher un atelier"
             placeholder="Rechercher un atelier (titre, description…)"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -1299,6 +1300,7 @@ function GroupesTab({
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
+            aria-label="Rechercher un type, un groupe ou un bénéficiaire"
             placeholder="Rechercher un type, un groupe ou un bénéficiaire…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -1502,7 +1504,7 @@ function IntervenantsTab({
                 </div>
               </div>
               <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
-                iv.Statut === "inactif" ? "bg-slate-100 text-slate-500" : "bg-green-50 text-green-700"
+                iv.Statut === "inactif" ? "bg-slate-100 text-slate-600" : "bg-green-50 text-green-700"
               }`}>
                 {iv.Statut || "actif"}
               </span>
