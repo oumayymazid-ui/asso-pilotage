@@ -8,7 +8,7 @@ import JournalSuivi from "@/components/JournalSuivi"
 import DateInput from "@/components/DateInput"
 import { ChevronRight, Plus, Pencil, Upload, FileText, ExternalLink, X } from "lucide-react"
 import {
-  fetchFamilles, fetchMembre, updateMembre, deleteMembre, fetchPaiements,
+  fetchFamilles, fetchMembre, updateMembre, deleteMembre,
   addPaiement, updatePaiement, deletePaiement, addInscription, updateInscription, uploadFichier,
   fetchDocuments, deleteDocument, getCurrentAnneeScolaire, getAnneeScolaireOptions, fetchScolariteFamille,
   type FamilleSheet, type MembreSheet, type PaiementSheet, type InscriptionSheet, type DocumentJoint, type ScolariteEntry
@@ -114,6 +114,7 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [documents, setDocuments] = useState<DocumentJoint[]>([])
   const [scolarites, setScolarites] = useState<ScolariteEntry[]>([])
   const [loading, setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [slideOpen, setSlideOpen] = useState(false)
   const [form, setForm]         = useState<Partial<MembreSheet>>({})
   const [payOpen, setPayOpen]   = useState(false)
@@ -137,17 +138,19 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   const [docSaving, setDocSaving] = useState(false)
 
   const loadData = useCallback(async () => {
+    setLoadError(false)
     try {
-      const [familles, m, p, docs] = await Promise.all([
+      // getMembre renvoie déjà les paiements → pas d'appel fetchPaiements séparé
+      // (évitait de relire INSCRIPTION + PAIEMENT, économie de quota Sheets).
+      const [familles, m, docs] = await Promise.all([
         fetchFamilles(),
         fetchMembre(membreId),
-        fetchPaiements(membreId),
         fetchDocuments(membreId),
       ])
       setFamille(familles.find(f => f.ID_Famille === id) ?? null)
       setMembre(m)
       setForm(m)
-      setPaiements(p)
+      setPaiements(m.paiements ?? [])
       setDocuments(docs)
 
       // Isolé du Promise.all principal : la scolarité est une info annexe, son
@@ -175,7 +178,10 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
       } else {
         setInscriptions(fetchedInscriptions)
       }
-    } catch { console.error("[familles] échec du chargement du membre") }
+    } catch (e) {
+      console.error("[familles] échec du chargement du membre", e)
+      setLoadError(true)
+    }
     finally { setLoading(false) }
   }, [id, membreId])
 
@@ -184,6 +190,19 @@ export default function FicheMembrePage({ params }: { params: Promise<{ id: stri
   if (loading) return (
     <div className="p-6 flex items-center justify-center min-h-[300px]">
       <p className="text-muted text-sm">Chargement…</p>
+    </div>
+  )
+
+  // Erreur de chargement (souvent le quota Google Sheets, 60 lectures/min) :
+  // on ne prétend PAS que le membre n'existe pas, on propose de réessayer.
+  if (!membre && loadError) return (
+    <div className="p-6">
+      <p className="text-foreground font-medium">Impossible de charger la fiche.</p>
+      <p className="text-muted text-sm mt-1">Le service de données est momentanément indisponible (quota atteint). Réessaie dans quelques secondes.</p>
+      <div className="flex items-center gap-4 mt-3">
+        <button onClick={() => { setLoading(true); loadData() }} className="text-familles-dark underline text-sm">Réessayer</button>
+        <Link href={`/familles/${id}`} className="text-familles-dark underline text-sm">← Retour</Link>
+      </div>
     </div>
   )
 
