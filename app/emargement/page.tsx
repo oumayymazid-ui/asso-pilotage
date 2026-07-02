@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { ChevronDown, ClipboardCheck, CheckCheck } from "lucide-react"
+import { useState, useEffect, useCallback, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { ChevronDown, ClipboardCheck, CheckCheck, Search, Check } from "lucide-react"
 
 // ──────────────────────────────────────────────
 // Types — lecture depuis Google Sheets (voir app/api/sheets/route.ts)
@@ -67,6 +67,130 @@ const S_SELECTED_SEANCE = "asso-emargement-seance"
 function frToIsoSort(d: string): string {
   const m = (d ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
   return m ? `${m[3]}-${m[2]}-${m[1]}` : (d ?? "")
+}
+
+/** Libellé lisible d'un atelier (catégorie · groupe, audience, date). */
+function atelierLabel(a: AtelierSheet): string {
+  const base = [a.Categorie, a.Groupe].filter(Boolean).join(" · ") || a.Titre
+  const audience = a.Audience ? ` (${a.Audience})` : ""
+  const date = a.Date_Debut ? ` — ${a.Date_Debut}` : ""
+  return `${base}${audience}${date}`
+}
+
+/** Normalise (minuscules + sans accents) pour une recherche tolérante. */
+const normalize = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+
+// ──────────────────────────────────────────────
+// Sélecteur d'atelier avec barre de recherche.
+// Combobox accessible (clavier + clic) : ouvre un panneau contenant un champ
+// de recherche filtrant la liste, pour sélectionner un seul atelier.
+// ──────────────────────────────────────────────
+function AtelierSelect({
+  ateliers,
+  selectedId,
+  onSelect,
+}: {
+  ateliers: AtelierSheet[]
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const [highlight, setHighlight] = useState(0)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const selected = ateliers.find(a => a.ID_Atelier === selectedId)
+  const q = normalize(query.trim())
+  const filtered = q ? ateliers.filter(a => normalize(atelierLabel(a)).includes(q)) : ateliers
+
+  // Ferme le panneau si clic en dehors.
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onClickOutside)
+    return () => document.removeEventListener("mousedown", onClickOutside)
+  }, [])
+
+  // Focus le champ de recherche à l'ouverture.
+  useEffect(() => {
+    if (open) { inputRef.current?.focus(); setHighlight(0) }
+  }, [open])
+
+  function choisir(a: AtelierSheet) {
+    onSelect(a.ID_Atelier)
+    setOpen(false)
+    setQuery("")
+  }
+
+  function onKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setHighlight(h => Math.min(h + 1, filtered.length - 1)) }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)) }
+    else if (e.key === "Enter") { e.preventDefault(); const a = filtered[highlight]; if (a) choisir(a) }
+    else if (e.key === "Escape") { setOpen(false) }
+  }
+
+  return (
+    <div ref={boxRef} className="relative w-full max-w-md">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 bg-surface border border-border rounded-xl px-4 py-3 text-sm font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-ateliers text-left"
+      >
+        <span className={selected ? "truncate text-foreground" : "truncate text-muted"}>
+          {selected ? atelierLabel(selected) : "Sélectionner un atelier…"}
+        </span>
+        <ChevronDown size={16} className="text-muted shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-surface border border-border rounded-xl shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-border">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={e => { setQuery(e.target.value); setHighlight(0) }}
+                onKeyDown={onKeyDown}
+                placeholder="Rechercher un atelier…"
+                className="w-full text-sm rounded-lg border border-border bg-surface pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-ateliers/30"
+              />
+            </div>
+          </div>
+          <ul role="listbox" className="max-h-60 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-muted italic">Aucun atelier trouvé.</li>
+            ) : (
+              filtered.map((a, i) => {
+                const isSelected = a.ID_Atelier === selectedId
+                return (
+                  <li key={a.ID_Atelier} role="option" aria-selected={isSelected}>
+                    <button
+                      type="button"
+                      onClick={() => choisir(a)}
+                      onMouseEnter={() => setHighlight(i)}
+                      className={`w-full flex items-center gap-2 text-left px-3 py-2 text-sm transition-colors ${
+                        i === highlight ? "bg-ateliers-light text-ateliers-dark" : "text-foreground"
+                      }`}
+                    >
+                      <Check size={14} className={isSelected ? "shrink-0 text-ateliers-dark" : "shrink-0 opacity-0"} />
+                      <span className="truncate">{atelierLabel(a)}</span>
+                    </button>
+                  </li>
+                )
+              })
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function EmargementPage() {
@@ -211,24 +335,12 @@ export default function EmargementPage() {
 
       {/* Sélecteur d'atelier */}
       <div className="mb-6">
-        <label htmlFor="emargement-atelier" className="text-xs font-semibold text-muted uppercase tracking-wider block mb-2">Atelier</label>
-        <div className="relative w-full max-w-md">
-          <select
-            id="emargement-atelier"
-            value={selectedId}
-            onChange={e => { setSelectedId(e.target.value); localStorage.setItem(S_SELECTED, e.target.value) }}
-            className="w-full appearance-none bg-surface border border-border rounded-xl px-4 py-3 pr-10 text-sm font-medium text-foreground cursor-pointer focus:outline-none focus:ring-2 focus:ring-ateliers"
-          >
-            {ateliers.map(a => (
-              <option key={a.ID_Atelier} value={a.ID_Atelier}>
-                {[a.Categorie, a.Groupe].filter(Boolean).join(" · ") || a.Titre}
-                {a.Audience && ` (${a.Audience})`}
-                {a.Date_Debut && ` — ${a.Date_Debut}`}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-        </div>
+        <span className="text-xs font-semibold text-muted uppercase tracking-wider block mb-2">Atelier</span>
+        <AtelierSelect
+          ateliers={ateliers}
+          selectedId={selectedId}
+          onSelect={id => { setSelectedId(id); localStorage.setItem(S_SELECTED, id) }}
+        />
       </div>
 
       {/* Sélecteur de séance — seulement si l'atelier a des séances définies */}
